@@ -36,7 +36,8 @@ static void PopOldestSnapshot(void)
 	gState.ringStart = (gState.ringStart + 1) % DELTA_MOUSE_MAX_SNAPSHOTS;
 	gState.ringLength--;
 
-	GAME_ASSERT(gState.ringLength != 0 || (gState.dxAccu == 0 && gState.dyAccu == 0));
+	/* Allow epsilon: float accumulators can have tiny rounding residuals when ring empties */
+	GAME_ASSERT(gState.ringLength != 0 || (SDL_fabsf(gState.dxAccu) < 1e-4f && SDL_fabsf(gState.dyAccu) < 1e-4f));
 }
 
 void MouseSmoothing_ResetState(void)
@@ -87,7 +88,8 @@ void MouseSmoothing_OnMouseMotion(const SDL_MouseMotionEvent* motion)
 
 void MouseSmoothing_GetDelta(float* dxOut, float* dyOut)
 {
-	GAME_ASSERT(gState.ringLength != 0 || (gState.dxAccu == 0 && gState.dyAccu == 0));
+	/* Allow epsilon: float accumulators can have tiny rounding residuals when ring empties */
+	GAME_ASSERT(gState.ringLength != 0 || (SDL_fabsf(gState.dxAccu) < 1e-4f && SDL_fabsf(gState.dyAccu) < 1e-4f));
 
 	*dxOut = gState.dxAccu;
 	*dyOut = gState.dyAccu;

@@ -1,0 +1,19 @@
+diff --git a/src/video/emscripten/SDL_emscriptenopengles.c b/src/video/emscripten/SDL_emscriptenopengles.c
+index 9bed30b4f..4d77ec1ba 100644
+--- a/src/video/emscripten/SDL_emscriptenopengles.c
++++ b/src/video/emscripten/SDL_emscriptenopengles.c
+@@ -89,10 +89,13 @@ SDL_GLContext Emscripten_GLES_CreateContext(SDL_VideoDevice *_this, SDL_Window *
+ 
+     emscripten_webgl_init_context_attributes(&attribs);
+ 
+-    attribs.alpha = _this->gl_config.alpha_size > 0;
++    /* alpha=false to avoid Color LCD profile compositing bug (black overlay).
++       Bugdom uses opaque background; fade overlay may need adjustment. */
++    attribs.alpha = 0;
+     attribs.depth = _this->gl_config.depth_size > 0;
+     attribs.stencil = _this->gl_config.stencil_size > 0;
+     attribs.antialias = _this->gl_config.multisamplebuffers == 1;
++    attribs.powerPreference = EM_WEBGL_POWER_PREFERENCE_HIGH_PERFORMANCE;  /* Prefer discrete GPU when available */
+ 
+     if (_this->gl_config.major_version == 3)
+         attribs.majorVersion = 2; // WebGL 2.0 ~= GLES 3.0

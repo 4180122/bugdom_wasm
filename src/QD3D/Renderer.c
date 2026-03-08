@@ -11,7 +11,9 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengl.h>
 #include <QD3D.h>
-
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#endif
 
 #pragma mark -
 
@@ -229,9 +231,25 @@ void DoFatalGLError(GLenum error, const char* file, int line)
 
 void Render_CreateContext(void)
 {
+#if defined(__EMSCRIPTEN__)
+	/* Boot already created the context for glActiveTexture init. SDL allows
+	   only one WebGL context per canvas, so reuse it instead of creating another. */
+	gGLContext = SDL_GL_GetCurrentContext();
+	if (!gGLContext)
+		gGLContext = SDL_GL_CreateContext(gSDLWindow);
+#else
 	gGLContext = SDL_GL_CreateContext(gSDLWindow);
+#endif
 
 	GAME_ASSERT(gGLContext);
+
+#if defined(__EMSCRIPTEN__)
+	/* Emscripten legacy GL emulation: TexEnvJIT.init() must run before any
+	   glEnable, or getCurTexUnit() returns null. glActiveTexture triggers
+	   the setup chain (GLImmediate -> setupHooks -> GLEmulation.init). */
+	SDL_GL_MakeCurrent(gSDLWindow, gGLContext);
+	glActiveTexture(GL_TEXTURE0);
+#endif
 
 	// On Windows, proc addresses are only valid for the current context,
 	// so we must get proc addresses everytime we recreate the context.
@@ -254,6 +272,10 @@ void Render_SetDefaultModifiers(RenderModifiers* dest)
 
 void Render_InitState(const TQ3ColorRGBA* clearColor)
 {
+	/* Emscripten legacy GL emulation: texture unit state must be initialized
+	   before any glEnable(GL_TEXTURE_2D) etc., or getCurTexUnit() returns null. */
+	glActiveTexture(GL_TEXTURE0);
+
 	SetInitialClientState(GL_VERTEX_ARRAY,				true);
 	SetInitialClientState(GL_NORMAL_ARRAY,				false);
 	SetInitialClientState(GL_COLOR_ARRAY,				false);
@@ -348,6 +370,77 @@ void Render_BindTexture(GLuint textureName)
 	}
 }
 
+#if defined(__EMSCRIPTEN__)
+/* WebGL doesn't support GL_BGRA, GL_BGR, GL_UNSIGNED_INT_8_8_8_8_REV,
+ * GL_UNSIGNED_SHORT_1_5_5_5_REV. Convert to RGBA/RGB + UNSIGNED_BYTE. */
+static void ConvertPixelsForWebGL(
+		GLenum bufferFormat,
+		GLenum bufferType,
+		const GLvoid* pixels,
+		int width,
+		int height,
+		GLenum* outFormat,
+		GLenum* outType,
+		GLvoid** outPixels)
+{
+	*outFormat = bufferFormat;
+	*outType = bufferType;
+	*outPixels = (GLvoid*) pixels;
+
+	if (bufferFormat == 0x80E1 && bufferType == 0x8367) /* GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV */
+	{
+		/* ARGB in memory -> RGBA */
+		int n = width * height;
+		uint8_t* conv = (uint8_t*) AllocPtr(n * 4);
+		const uint8_t* src = (const uint8_t*) pixels;
+		for (int i = 0; i < n; i++)
+		{
+			conv[i*4+0] = src[i*4+1]; /* R */
+			conv[i*4+1] = src[i*4+2]; /* G */
+			conv[i*4+2] = src[i*4+3]; /* B */
+			conv[i*4+3] = src[i*4+0]; /* A */
+		}
+		*outFormat = GL_RGBA;
+		*outType = GL_UNSIGNED_BYTE;
+		*outPixels = conv;
+	}
+	else if (bufferFormat == 0x80E0 && bufferType == GL_UNSIGNED_BYTE) /* GL_BGR */
+	{
+		/* BGR -> RGB */
+		int n = width * height;
+		uint8_t* conv = (uint8_t*) AllocPtr(n * 3);
+		const uint8_t* src = (const uint8_t*) pixels;
+		for (int i = 0; i < n; i++)
+		{
+			conv[i*3+0] = src[i*3+2];
+			conv[i*3+1] = src[i*3+1];
+			conv[i*3+2] = src[i*3+0];
+		}
+		*outFormat = GL_RGB;
+		*outType = GL_UNSIGNED_BYTE;
+		*outPixels = conv;
+	}
+	else if (bufferFormat == 0x80E1 && bufferType == 0x8366) /* GL_BGRA/EXT, GL_UNSIGNED_SHORT_1_5_5_5_REV */
+	{
+		/* 16-bit 1555 -> RGBA8. Bits: 15=A, 10-14=R, 5-9=G, 0-4=B */
+		int n = width * height;
+		uint8_t* conv = (uint8_t*) AllocPtr(n * 4);
+		const uint16_t* src = (const uint16_t*) pixels;
+		for (int i = 0; i < n; i++)
+		{
+			uint16_t w = src[i];
+			conv[i*4+0] = (uint8_t)(((w >> 10) & 0x1F) * 255 / 31);
+			conv[i*4+1] = (uint8_t)(((w >> 5) & 0x1F) * 255 / 31);
+			conv[i*4+2] = (uint8_t)((w & 0x1F) * 255 / 31);
+			conv[i*4+3] = (uint8_t)(((w >> 15) & 1) * 255);
+		}
+		*outFormat = GL_RGBA;
+		*outType = GL_UNSIGNED_BYTE;
+		*outPixels = conv;
+	}
+}
+#endif
+
 GLuint Render_LoadTexture(
 		GLenum internalFormat,
 		int width,
@@ -376,6 +469,80 @@ GLuint Render_LoadTexture(
 	if (flags & kRendererTextureFlags_ClampV)
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
+#if defined(__EMSCRIPTEN__)
+	/* WebGL doesn't support GL_BGRA, GL_BGR, GL_UNSIGNED_INT_8_8_8_8_REV,
+	   GL_UNSIGNED_SHORT_1_5_5_5_REV. Convert to RGBA/RGB + UNSIGNED_BYTE.
+	   When uploading RGBA data, internalFormat must be GL_RGBA (WebGL rejects
+	   GL_RGB internalFormat with GL_RGBA format). */
+	GLenum uploadInternalFormat = internalFormat;
+	GLenum uploadFormat = bufferFormat;
+	GLenum uploadType = bufferType;
+	const GLvoid* uploadPixels = pixels;
+	void* convertedBuffer = NULL;
+
+	if ((bufferFormat == 0x80E1 /* GL_BGRA */ && bufferType == 0x8367 /* GL_UNSIGNED_INT_8_8_8_8_REV */) ||
+	    (bufferFormat == 0x80E1 && bufferType == 0x8366 /* GL_UNSIGNED_SHORT_1_5_5_5_REV */))
+	{
+		uploadInternalFormat = GL_RGBA;
+		uploadFormat = GL_RGBA;
+		uploadType = GL_UNSIGNED_BYTE;
+		if (bufferType == 0x8367)
+		{
+			/* ARGB -> RGBA (swap component order) */
+			convertedBuffer = AllocPtr((size_t)width * height * 4);
+			const uint8_t* src = (const uint8_t*)pixels;
+			uint8_t* dst = (uint8_t*)convertedBuffer;
+			for (int i = 0; i < width * height; i++)
+			{
+				dst[i*4+0] = src[i*4+1]; dst[i*4+1] = src[i*4+2];
+				dst[i*4+2] = src[i*4+3]; dst[i*4+3] = src[i*4+0];
+			}
+			uploadPixels = convertedBuffer;
+		}
+		else
+		{
+			/* 16-bit 1555 -> RGBA8 */
+			convertedBuffer = AllocPtr((size_t)width * height * 4);
+			const uint16_t* src = (const uint16_t*)pixels;
+			uint8_t* dst = (uint8_t*)convertedBuffer;
+			for (int i = 0; i < width * height; i++)
+			{
+				uint16_t w = src[i];
+				dst[i*4+0] = (uint8_t)(((w >> 10) & 0x1F) * 255 / 31);
+				dst[i*4+1] = (uint8_t)(((w >> 5) & 0x1F) * 255 / 31);
+				dst[i*4+2] = (uint8_t)((w & 0x1F) * 255 / 31);
+				dst[i*4+3] = (uint8_t)(((w >> 15) & 1) * 255);
+			}
+			uploadPixels = convertedBuffer;
+		}
+	}
+	else if (bufferFormat == 0x80E0 /* GL_BGR */ && bufferType == GL_UNSIGNED_BYTE)
+	{
+		uploadFormat = GL_RGB;
+		uploadType = GL_UNSIGNED_BYTE;
+		convertedBuffer = AllocPtr((size_t)width * height * 3);
+		const uint8_t* src = (const uint8_t*)pixels;
+		uint8_t* dst = (uint8_t*)convertedBuffer;
+		for (int i = 0; i < width * height; i++)
+		{
+			dst[i*3+0] = src[i*3+2];
+			dst[i*3+1] = src[i*3+1];
+			dst[i*3+2] = src[i*3+0];
+		}
+		uploadPixels = convertedBuffer;
+	}
+
+	/* WebGL requires internalFormat to match format. Use sized format for compatibility. */
+	if (uploadFormat == GL_RGBA)
+		uploadInternalFormat = 0x8058; /* GL_RGBA8 - explicit sized format for WebGL2 */
+	else if (uploadFormat == GL_RGB)
+		uploadInternalFormat = 0x8051; /* GL_RGB8 */
+
+	glTexImage2D(GL_TEXTURE_2D, 0, uploadInternalFormat, width, height, 0,
+		    uploadFormat, uploadType, uploadPixels);
+	if (convertedBuffer)
+		DisposePtr((Ptr)convertedBuffer);
+#else
 	glTexImage2D(
 			GL_TEXTURE_2D,
 			0,						// mipmap level
@@ -386,6 +553,7 @@ GLuint Render_LoadTexture(
 			bufferFormat,			// what my format is
 			bufferType,				// size of each r,g,b
 			pixels);				// pointer to the actual texture pixels
+#endif
 	CHECK_GL_ERROR();
 
 	return textureName;
@@ -413,6 +581,65 @@ void Render_UpdateTexture(
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, rowBytesInInput);
 	}
 
+#if defined(__EMSCRIPTEN__)
+	/* Same format conversion as Render_LoadTexture for WebGL compatibility. */
+	GLenum uploadFormat = bufferFormat;
+	GLenum uploadType = bufferType;
+	const GLvoid* uploadPixels = pixels;
+	void* convertedBuffer = NULL;
+
+	if ((bufferFormat == 0x80E1 && bufferType == 0x8367) ||
+	    (bufferFormat == 0x80E1 && bufferType == 0x8366))
+	{
+		uploadFormat = GL_RGBA;
+		uploadType = GL_UNSIGNED_BYTE;
+		convertedBuffer = AllocPtr((size_t)width * height * 4);
+		if (bufferType == 0x8367)
+		{
+			const uint8_t* src = (const uint8_t*)pixels;
+			uint8_t* dst = (uint8_t*)convertedBuffer;
+			for (int i = 0; i < width * height; i++)
+			{
+				dst[i*4+0] = src[i*4+1]; dst[i*4+1] = src[i*4+2];
+				dst[i*4+2] = src[i*4+3]; dst[i*4+3] = src[i*4+0];
+			}
+		}
+		else
+		{
+			const uint16_t* src = (const uint16_t*)pixels;
+			uint8_t* dst = (uint8_t*)convertedBuffer;
+			for (int i = 0; i < width * height; i++)
+			{
+				uint16_t w = src[i];
+				dst[i*4+0] = (uint8_t)(((w >> 10) & 0x1F) * 255 / 31);
+				dst[i*4+1] = (uint8_t)(((w >> 5) & 0x1F) * 255 / 31);
+				dst[i*4+2] = (uint8_t)((w & 0x1F) * 255 / 31);
+				dst[i*4+3] = (uint8_t)(((w >> 15) & 1) * 255);
+			}
+		}
+		uploadPixels = convertedBuffer;
+	}
+	else if (bufferFormat == 0x80E0 && bufferType == GL_UNSIGNED_BYTE)
+	{
+		uploadFormat = GL_RGB;
+		uploadType = GL_UNSIGNED_BYTE;
+		convertedBuffer = AllocPtr((size_t)width * height * 3);
+		const uint8_t* src = (const uint8_t*)pixels;
+		uint8_t* dst = (uint8_t*)convertedBuffer;
+		for (int i = 0; i < width * height; i++)
+		{
+			dst[i*3+0] = src[i*3+2];
+			dst[i*3+1] = src[i*3+1];
+			dst[i*3+2] = src[i*3+0];
+		}
+		uploadPixels = convertedBuffer;
+	}
+
+	glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, width, height,
+			uploadFormat, uploadType, uploadPixels);
+	if (convertedBuffer)
+		DisposePtr((Ptr)convertedBuffer);
+#else
 	glTexSubImage2D(
 			GL_TEXTURE_2D,
 			0,
@@ -423,6 +650,7 @@ void Render_UpdateTexture(
 			bufferFormat,
 			bufferType,
 			pixels);
+#endif
 	CHECK_GL_ERROR();
 
 	// Restore unpack row length
@@ -845,6 +1073,11 @@ static void SendGeometry(const MeshQueueEntry* entry)
 	}
 
 	// Draw the mesh
+#if defined(__EMSCRIPTEN__)
+	/* glemu patch 12: prepareClientAttributes needs vertex count; pass via Module. */
+	/* glemu patch 13: glemu hardcodes UNSIGNED_SHORT; we use UNSIGNED_INT. */
+	EM_ASM({ Module._glemuVertexCount = $0; Module._glemuIndexType = 0x1405; }, mesh->numPoints);
+#endif
 	glDrawElements(GL_TRIANGLES, mesh->numTriangles*3, GL_UNSIGNED_INT, mesh->triangles);
 	CHECK_GL_ERROR();
 
@@ -855,6 +1088,9 @@ static void SendGeometry(const MeshQueueEntry* entry)
 		glCullFace(GL_BACK);	// pass 2: draw frontfaces (cull backfaces)
 
 		// Draw the mesh again
+#if defined(__EMSCRIPTEN__)
+		EM_ASM({ Module._glemuVertexCount = $0; Module._glemuIndexType = 0x1405; }, mesh->numPoints);
+#endif
 		glDrawElements(GL_TRIANGLES, mesh->numTriangles * 3, GL_UNSIGNED_INT, mesh->triangles);
 		CHECK_GL_ERROR();
 	}

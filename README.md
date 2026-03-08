@@ -1,9 +1,10 @@
-# Bugdom
+# Bugdom (WASM Port)
 
-This is Pangea Software's **Bugdom** updated to run on modern operating systems.
-This version, at https://github.com/jorio/bugdom, is approved by Pangea Software.
+A **WebAssembly port** of [Bugdom](https://github.com/jorio/Bugdom), playable in the browser.
 
-**Download the game for macOS, Windows and Linux here:** https://github.com/jorio/bugdom/releases
+> **Original port:** This project is based on [jorio/Bugdom](https://github.com/jorio/Bugdom) by Iliyas Jorio, which ports Pangea Software's Bugdom to modern desktop platforms. The WASM build adds Emscripten support for browser playback. All credits for the original game and port apply — see [Credits](#credits) and [License](#license) below.
+
+**Download the desktop game (macOS, Windows, Linux):** https://github.com/jorio/Bugdom/releases
 
 ![Bugdom Screenshot](docs/screenshot.webp)
 
@@ -20,6 +21,10 @@ This port aims to provide the best way to experience Bugdom today. It introduces
 The first release of this port used a custom fork of [Quesa](https://github.com/jwwalker/Quesa) for rendering. Bugdom has switched to a tailor-made renderer as of version 1.3.1.
 
 A port of the sequel is also available: [Bugdom 2](https://github.com/jorio/Bugdom2).
+
+## Building for Web
+
+- [BUILD_WASM.md](BUILD_WASM.md) — How to build the WASM/browser version with Emscripten.
 
 ## Documentation
 
@@ -38,7 +43,7 @@ A port of the sequel is also available: [Bugdom 2](https://github.com/jorio/Bugd
 
 ## License
 
-Bugdom is being re-released here (https://github.com/jorio/bugdom) under the [CC BY-NC-SA 4.0](LICENSE.md) license with permission from Pangea Software, Inc.
+Bugdom is re-released under the [CC BY-NC-SA 4.0](LICENSE.md) license with permission from Pangea Software, Inc. The original port is at [github.com/jorio/Bugdom](https://github.com/jorio/Bugdom).
 
 Bugdom® is a registered trademark of Pangea Software, Inc.
 

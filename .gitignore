@@ -1,5 +1,8 @@
-# External libraries
-extern/SDL*
+# External libraries (fetched by make deps)
+extern/Pomme
+extern/SDL
+extern/SDL3*
+extern/SDL3.framework
 
 # External library cache
 /cache

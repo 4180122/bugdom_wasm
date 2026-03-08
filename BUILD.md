@@ -1,5 +1,9 @@
 # How to build Bugdom
 
+## Dev container (Linux)
+
+To develop and build on Linux inside a container (no local Linux or matching distro needed), open this repo in VS Code or Cursor and use **Dev Containers** (e.g. “Reopen in Container”). The `.devcontainer` set-up installs CMake, a C++20 toolchain, and OpenGL/Mesa; you can then run `python3 build.py` or the manual Linux build steps below. SDL3 is built from source by `build.py` when not using `--system-sdl`.
+
 ## The easy way: build.py (automated build script)
 
 `build.py` can produce a game executable from a fresh clone of the repo in a single command. It will work on macOS, Windows and Linux, provided that your system has Python 3, CMake, and an adequate C++ compiler.

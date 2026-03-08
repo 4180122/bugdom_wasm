@@ -154,9 +154,12 @@ QD3DSetupOutputType	*outputPtr;
 
 	SDL_GL_SetSwapInterval(gGamePrefs.vsync);
 
-	CreateLights(&setupDefPtr->lights);
-
+	/* Must init GL state (incl. matrix stack) before CreateLights; Emscripten legacy GL
+	   emulation's glLightfv(GL_POSITION) uses modelview matrix, which is undefined until
+	   glMatrixMode/glLoadIdentity have been called at least once. */
 	Render_InitState(&setupDefPtr->view.clearColor);
+
+	CreateLights(&setupDefPtr->lights);
 
 	if (setupDefPtr->lights.useFog)
 	{

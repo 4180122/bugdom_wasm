@@ -19,6 +19,13 @@ project(${GAME_TARGET}
 	VERSION ${GAME_VERSION}
 	LANGUAGES C CXX)
 
+# Emscripten: set legacy GL emulation early so -lGL resolves to the emu library.
+# Bugdom uses fixed-function OpenGL (glVertex3f, glLoadMatrixf, glLightfv, etc.)
+# which WebGL 2 doesn't provide natively.
+if(EMSCRIPTEN)
+	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -sLEGACY_GL_EMULATION -sGL_FFP_ONLY=1")
+endif()
+
 option(BUILD_SDL_FROM_SOURCE "Build SDL from source" OFF)
 option(SDL_STATIC "Static link SDL" OFF)
 
@@ -60,6 +67,27 @@ add_compile_definitions(POMME_CASE_SENSITIVE_FSSPEC=1)
 # FIND SDL
 #------------------------------------------------------------------------------
 
+# Emscripten/WASM: must build SDL from source (no pre-built web SDL package)
+if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+	set(BUILD_SDL_FROM_SOURCE ON CACHE BOOL "Build SDL from source (required for Emscripten)" FORCE)
+	if(NOT DEFINED SDL3_DIR)
+		set(SDL3_DIR "${CMAKE_SOURCE_DIR}/extern/SDL")
+	endif()
+	# -O3 can hurt performance on legacy GL emulation (Debug -O0 runs faster in practice).
+	# Use -O2 for Release; override via -DWASM_RELEASE_OPT=3 if you want full optimization.
+	set(WASM_RELEASE_OPT "2" CACHE STRING "Emscripten Release optimization: 0,1,2,3,s,z,g (default 2)")
+	if(CMAKE_BUILD_TYPE STREQUAL "Release")
+		set(CMAKE_C_FLAGS_RELEASE "-O${WASM_RELEASE_OPT} -DNDEBUG" CACHE STRING "" FORCE)
+		set(CMAKE_CXX_FLAGS_RELEASE "-O${WASM_RELEASE_OPT} -DNDEBUG" CACHE STRING "" FORCE)
+		message(STATUS "WASM Release: using -O${WASM_RELEASE_OPT} (override with -DWASM_RELEASE_OPT=3 for -O3)")
+	elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+		# Debug uses -O2 -g: keeps symbols for stack traces but optimizes for speed (-O0 is very slow)
+		# set(CMAKE_C_FLAGS_DEBUG "-O2 -g" CACHE STRING "" FORCE)
+		# set(CMAKE_CXX_FLAGS_DEBUG "-O2 -g" CACHE STRING "" FORCE)
+		message(STATUS "WASM Debug: using -O2 -g (optimized but with debug symbols)")
+	endif()
+endif()
+
 # If SDL3_DIR wasn't specified, discover if the user put some prebuilt SDL3
 # package in the 'extern' directory
 if(NOT DEFINED SDL3_DIR)
@@ -72,21 +100,53 @@ if(NOT DEFINED SDL3_DIR)
 	if(DEFINED _sdl3_maybe AND EXISTS "${_sdl3_maybe}")
 		set(SDL3_DIR "${_sdl3_maybe}")
 		message("Looking for SDL3 in: ${_sdl3_maybe}")
-	else()
-		message("Couldn't find pre-built SDL3 package in: ${_sdl3_maybe}")
 	endif()
 	unset(_sdl3_maybe)
 endif()
 
+# Try to find system SDL3 first; fall back to building from source if not found
+# and extern/SDL exists (required for Linux devcontainer and WASM/Emscripten)
 if(NOT BUILD_SDL_FROM_SOURCE)
-	find_package(SDL3 CONFIG REQUIRED)
-	message("Found pre-built SDL3")
+	find_package(SDL3 CONFIG QUIET)
+	if(NOT SDL3_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/extern/SDL/CMakeLists.txt")
+		set(BUILD_SDL_FROM_SOURCE ON CACHE BOOL "Build SDL from source (SDL3 not found, using extern/SDL)" FORCE)
+		set(SDL3_DIR "${CMAKE_SOURCE_DIR}/extern/SDL")
+		message("SDL3 not found; building from source: ${SDL3_DIR}")
+	elseif(NOT SDL3_FOUND)
+		find_package(SDL3 CONFIG REQUIRED)
+	endif()
+	if(SDL3_FOUND)
+		message("Found pre-built SDL3")
+	endif()
+endif()
+
+if(NOT BUILD_SDL_FROM_SOURCE)
+	if(NOT SDL3_FOUND)
+		find_package(SDL3 CONFIG REQUIRED)
+	endif()
 else()
 	if(NOT DEFINED SDL3_DIR)
 		set(SDL3_DIR "${CMAKE_SOURCE_DIR}/extern/SDL")
 	endif()
-	message("Building SDL3 from source: " ${SDL3_DIR})
+	if(NOT EXISTS "${SDL3_DIR}/CMakeLists.txt")
+		message(FATAL_ERROR "SDL3 source not found at ${SDL3_DIR}. "
+			"For WASM builds, run: git clone https://github.com/libsdl-org/SDL extern/SDL")
+	endif()
+	# On Linux without X11/Wayland (e.g. headless devcontainer), skip video deps so SDL builds.
+	# Pass -DSDL_SKIP_VIDEO_DEPS=OFF if you need native window support.
+	option(SDL_SKIP_VIDEO_DEPS "Skip X11/Wayland requirement (for headless/WASM builds)" ON)
+	if(UNIX AND NOT APPLE AND SDL_SKIP_VIDEO_DEPS)
+		set(SDL_UNIX_CONSOLE_BUILD ON CACHE BOOL "Skip X11/Wayland" FORCE)
+	endif()
+	# Emscripten/WASM requires static SDL (shared libs not supported)
+	if(EMSCRIPTEN)
+		set(SDL_SHARED OFF CACHE BOOL "Emscripten: shared libs not supported" FORCE)
+		set(SDL_STATIC ON CACHE BOOL "Emscripten: use static SDL" FORCE)
+	endif()
+	message("Building SDL3 from source: ${SDL3_DIR}")
 	add_subdirectory("${SDL3_DIR}" EXCLUDE_FROM_ALL)
+	# Make find_package(SDL3) succeed for Pomme when SDL is built from source
+	set(SDL3_DIR "${CMAKE_SOURCE_DIR}/cmake")
 endif()
 
 #------------------------------------------------------------------------------
@@ -107,14 +167,19 @@ configure_file(${GAME_SRCDIR}/Headers/version.h.in ${GAME_SRCDIR}/Headers/versio
 # Glob all source files
 file(GLOB_RECURSE GAME_SOURCES CONFIGURE_DEPENDS ${GAME_SRCDIR}/*.c ${GAME_SRCDIR}/*.cpp ${GAME_SRCDIR}/*.h)
 
+# Emscripten: include gl_compat stub (glColorMaterial not in glemu). Exclude on native.
+if(NOT EMSCRIPTEN)
+	list(REMOVE_ITEM GAME_SOURCES "${GAME_SRCDIR}/QD3D/gl_compat_emscripten.c")
+endif()
+
 # Make source groups match file tree
 source_group(TREE ${GAME_SRCDIR} PREFIX "" FILES ${GAME_SOURCES})
 
-if(WIN32)
+if(WIN32 AND NOT EMSCRIPTEN)
 	# Windows resource file
 	configure_file(${CMAKE_SOURCE_DIR}/packaging/win32.rc.in ${CMAKE_SOURCE_DIR}/packaging/${GAME_TARGET}.exe.rc)
 	list(APPEND GAME_SOURCES ${CMAKE_SOURCE_DIR}/packaging/${GAME_TARGET}.exe.rc)
-elseif(APPLE)
+elseif(APPLE AND NOT EMSCRIPTEN)
 	list(APPEND GAME_SOURCES ${CMAKE_SOURCE_DIR}/packaging/${GAME_TARGET}.icns)
 	set_source_files_properties(${CMAKE_SOURCE_DIR}/packaging/${GAME_TARGET}.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 endif()
@@ -196,23 +261,77 @@ if(SANITIZE)
 	target_link_libraries(${GAME_TARGET} PRIVATE asan ubsan)
 endif()
 
-# Explicitly link math lib on Linux
-if(NOT APPLE AND NOT WIN32)
+# Explicitly link math lib on Linux (not on Emscripten; it's in the runtime)
+if(NOT APPLE AND NOT WIN32 AND NOT EMSCRIPTEN)
 	target_link_libraries(${GAME_TARGET} PRIVATE m)
 endif()
 
-# Link SDL
-if(NOT SDL_STATIC)
-	target_link_libraries(${GAME_TARGET} PRIVATE SDL3::SDL3)
-else()
+# Emscripten: preload Data into virtual FS, WebGL2, HTML shell, legacy GL emulation
+# Bugdom uses fixed-function OpenGL (glVertex3f, glLoadMatrixf, glLightfv, etc.)
+# which WebGL 2 doesn't provide; LEGACY_GL_EMULATION emulates these on top of WebGL.
+# Note: FULL_ES3 cannot be used with LEGACY_GL_EMULATION ("cannot emulate both ES2 and legacy GL").
+#
+# EMBED_DATA_FOR_WASM: Use --embed-file instead of --preload-file. Avoids "Unexpected error
+# while handling" when the .data fetch fails (e.g. CursorBrowser, some proxies). Trade-off:
+# Bugdom.js becomes ~70MB (Data inlined) vs separate Bugdom.data download.
+option(EMBED_DATA_FOR_WASM "Embed Data in JS (avoids .data fetch; use if preload fails)" OFF)
+if(EMSCRIPTEN)
+	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -sLEGACY_GL_EMULATION=1 -sGL_FFP_ONLY=1")
+	if(EMBED_DATA_FOR_WASM)
+		target_link_options(${GAME_TARGET} PRIVATE
+			"SHELL:-s USE_WEBGL2=1"
+			"SHELL:-s LEGACY_GL_EMULATION=1"
+			"SHELL:-s GL_FFP_ONLY=1"
+			"SHELL:-s GL_UNSAFE_OPTS=0"
+			"SHELL:--pre-js ${CMAKE_SOURCE_DIR}/cmake/emscripten_gl_init_pre.js"
+			"SHELL:--embed-file ${GAME_DATADIR}@/Data"
+			"SHELL:-s ALLOW_MEMORY_GROWTH=1"
+			"SHELL:-s ASSERTIONS=0"
+			"SHELL:-s ASYNCIFY=1"
+			"SHELL:-s ASYNCIFY_IMPORTS=emscripten_sleep"
+			"SHELL:-s EXPORTED_RUNTIME_METHODS=HEAP8,HEAPU8,HEAP32,HEAPF32"
+			"SHELL:-s EMULATE_FUNCTION_POINTER_CASTS=1"
+			"SHELL:-o ${GAME_TARGET}.html"
+		)
+		message(STATUS "WASM: Embedding Data (no separate .data file)")
+	else()
+		target_link_options(${GAME_TARGET} PRIVATE
+			"SHELL:-s USE_WEBGL2=1"
+			"SHELL:-s LEGACY_GL_EMULATION=1"
+			"SHELL:-s GL_FFP_ONLY=1"
+			"SHELL:-s GL_UNSAFE_OPTS=0"
+			"SHELL:--pre-js ${CMAKE_SOURCE_DIR}/cmake/emscripten_gl_init_pre.js"
+			"SHELL:--preload-file ${GAME_DATADIR}@/Data"
+			"SHELL:-s ALLOW_MEMORY_GROWTH=1"
+			"SHELL:-s ASSERTIONS=0"
+			"SHELL:-s ASYNCIFY=1"
+			"SHELL:-s ASYNCIFY_IMPORTS=emscripten_sleep"
+			"SHELL:-s EXPORTED_RUNTIME_METHODS=HEAP8,HEAPU8,HEAP32,HEAPF32"
+			"SHELL:-s EMULATE_FUNCTION_POINTER_CASTS=1"
+			"SHELL:-o ${GAME_TARGET}.html"
+		)
+	endif()
+endif()
+
+# Link SDL (Emscripten only builds static; native can use shared or static)
+if(EMSCRIPTEN OR SDL_STATIC)
 	target_link_libraries(${GAME_TARGET} PRIVATE SDL3::SDL3-static)
+else()
+	target_link_libraries(${GAME_TARGET} PRIVATE SDL3::SDL3)
 endif()
 
 # Link core dependencies
-target_link_libraries(${GAME_TARGET} PRIVATE Pomme OpenGL::GL)
+if(EMSCRIPTEN)
+	# Use legacy GL emulation library - provides glVertex3f, glLoadMatrixf, glLightfv, etc.
+	# that WebGL 2 doesn't have. Must match LEGACY_GL_EMULATION=1 in link flags above.
+	# SDL references emscripten_webgl_get_proc_address, so we must use getprocaddr variant.
+	target_link_libraries(${GAME_TARGET} PRIVATE Pomme "GL-emu-webgl2-getprocaddr")
+else()
+	target_link_libraries(${GAME_TARGET} PRIVATE Pomme OpenGL::GL)
+endif()
 
-# Add required frameworks for KillMacMouseAcceleration
-if(APPLE)
+# Add required frameworks for KillMacMouseAcceleration (desktop macOS only)
+if(APPLE AND NOT EMSCRIPTEN)
 	target_link_libraries(${GAME_TARGET} PRIVATE "-framework Foundation" "-framework IOKit")
 endif()
 
@@ -221,6 +340,10 @@ endif()
 #------------------------------------------------------------------------------
 
 set_target_properties(${GAME_TARGET} PROPERTIES
+	#--------------------------------------------------------------------------
+	# EMSCRIPTEN (HTML shell generated via link option below)
+	#--------------------------------------------------------------------------
+
 	#--------------------------------------------------------------------------
 	# MSVC/WIN32
 	#--------------------------------------------------------------------------
@@ -276,14 +399,31 @@ set_target_properties(${GAME_TARGET} PROPERTIES
 # POST-BUILD (COPY ASSETS, ETC.)
 #------------------------------------------------------------------------------
 
-if(APPLE)
+if(APPLE AND NOT EMSCRIPTEN)
 	set(GAME_DATA_TARGET_LOCATION "$<TARGET_FILE_DIR:${GAME_TARGET}>/../Resources")
-else()
+elseif(NOT EMSCRIPTEN)
 	set(GAME_DATA_TARGET_LOCATION "$<TARGET_FILE_DIR:${GAME_TARGET}>/Data")
 endif()
 
-add_custom_command(TARGET ${GAME_TARGET} POST_BUILD
-	COMMAND ${CMAKE_COMMAND} -E copy_directory "${GAME_DATADIR}" "${GAME_DATA_TARGET_LOCATION}")
+if(NOT EMSCRIPTEN)
+	add_custom_command(TARGET ${GAME_TARGET} POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy_directory "${GAME_DATADIR}" "${GAME_DATA_TARGET_LOCATION}")
+else()
+	# Emscripten may not produce Bugdom.html from -o flag; ensure we have a loader
+	add_custom_command(TARGET ${GAME_TARGET} POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy
+			"${CMAKE_SOURCE_DIR}/packaging/bugdom-wasm.html"
+			"$<TARGET_FILE_DIR:${GAME_TARGET}>/Bugdom.html")
+	# Workaround: Emscripten legacy GL emulation bugs when using emscripten_webgl_* (SDL path).
+	# 1. getCurTexUnit returns null before TexEnvJIT.init() runs.
+	# 2. newRenderingFrameStarted crashes when tempVertexBufferCounters1 is uninitialized.
+	# 3. moduleContextCreatedCallbacks never run (GLImmediate.init, generateTempBuffers).
+	add_custom_command(TARGET ${GAME_TARGET} POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E env LC_ALL=C
+			sh "${CMAKE_SOURCE_DIR}/cmake/patch_emscripten_gl.sh"
+			"$<TARGET_FILE_DIR:${GAME_TARGET}>/Bugdom.js"
+		COMMENT "Patch Emscripten legacy GL emulation bugs")
+endif()
 
 if(APPLE)
 	set(INFO_PLIST "${GAME_DATA_TARGET_LOCATION}/../Info.plist")

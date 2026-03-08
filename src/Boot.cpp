@@ -4,6 +4,9 @@
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
+#if defined(__EMSCRIPTEN__)
+#include <SDL3/SDL_opengl.h>
+#endif
 
 #include "Pomme.h"
 #include "PommeInit.h"
@@ -28,6 +31,19 @@ static fs::path FindGameData(const char* executablePath)
 {
 	fs::path dataPath;
 
+#if defined(__EMSCRIPTEN__)
+	// Emscripten: Data is preloaded at /Data by the build (--preload-file Data@/Data)
+	(void)executablePath;
+	dataPath = "/Data";
+	gDataSpec = Pomme::Files::HostPathToFSSpec(dataPath / "System");
+	{
+		FSSpec spec;
+		OSErr err = FSMakeFSSpec(gDataSpec.vRefNum, gDataSpec.parID, ":System:gamecontrollerdb.txt", &spec);
+		if (err)
+			throw std::runtime_error("Couldn't find the Data folder (Emscripten: check that Data is preloaded at /Data).");
+	}
+	return dataPath;
+#else
 	int attemptNum = 0;
 
 #if !(__APPLE__)
@@ -65,14 +81,15 @@ tryAgain:
 	// Set data spec -- Lets the game know where to find its asset files
 	gDataSpec = Pomme::Files::HostPathToFSSpec(dataPath / "System");
 
-	FSSpec someDataFileSpec;
-	OSErr iErr = FSMakeFSSpec(gDataSpec.vRefNum, gDataSpec.parID, ":System:gamecontrollerdb.txt", &someDataFileSpec);
-	if (iErr)
+	FSSpec dataFileSpec;
+	OSErr err = FSMakeFSSpec(gDataSpec.vRefNum, gDataSpec.parID, ":System:gamecontrollerdb.txt", &dataFileSpec);
+	if (err)
 	{
 		goto tryAgain;
 	}
 
 	return dataPath;
+#endif
 }
 
 static void Boot(int argc, char** argv)
@@ -100,16 +117,27 @@ retryVideo:
 	}
 
 	// Create window
+#if defined(__EMSCRIPTEN__)
+	// Emscripten: must request GLES/WebGL 2 for legacy GL emulation (USE_WEBGL2=1).
+	// SDL only sets WebGL 2 when major_version==3.
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#else
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#endif
 
 	gCurrentAntialiasingLevel = gGamePrefs.antialiasingLevel;
+#if !defined(__EMSCRIPTEN__)
+	// Emscripten: MSAA often causes WebGL context creation to fail. Disable for WASM.
 	if (gCurrentAntialiasingLevel != 0)
 	{
 		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
 		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 1 << gCurrentAntialiasingLevel);
 	}
+#endif
 
 	// Determine display
 	SDL_DisplayID display = gGamePrefs.displayNumMinus1 + 1;
@@ -148,6 +176,24 @@ retryVideo:
 			throw std::runtime_error("Couldn't create SDL window.");
 		}
 	}
+
+#if defined(__EMSCRIPTEN__)
+	/* Force Emscripten legacy GL emulation init before GameMain.
+	   TexEnvJIT.init() must run before any glEnable (getCurTexUnit would be null).
+	   Must be the first GL call. */
+	{
+		SDL_GLContext ctx = SDL_GL_GetCurrentContext();
+		if (!ctx)
+			ctx = SDL_GL_CreateContext(gSDLWindow);
+		if (!ctx)
+			SDL_Log("Emscripten: SDL_GL_CreateContext failed: %s", SDL_GetError());
+		else
+		{
+			SDL_GL_MakeCurrent(gSDLWindow, ctx);
+			glActiveTexture(GL_TEXTURE0);
+		}
+	}
+#endif
 
 	// Find path to game data folder
 	fs::path dataPath = FindGameData(executablePath);

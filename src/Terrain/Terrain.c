@@ -931,7 +931,7 @@ static TQ3Vector3D	faceNormal[NUM_TRIS_IN_SUPERTILE];
 		{
 			row = row2 + startRow;
 	
-			for (col2 = textureMinCol; col2 < textureMaxRow; col2++)
+			for (col2 = textureMinCol; col2 < textureMaxCol; col2++)
 			{
 				col = col2 + startCol;
 	

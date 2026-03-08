@@ -1,0 +1,64 @@
+diff --git a/src/Files/Files.cpp b/src/Files/Files.cpp
+index 301431e..d0e4803 100644
+--- a/src/Files/Files.cpp
++++ b/src/Files/Files.cpp
+@@ -175,6 +175,8 @@ OSErr FindFolder(short vRefNum, OSType folderType, Boolean createFolder, short*
+ 	{
+ #ifdef _WIN32
+ 		path = Pomme::Platform::Windows::GetPreferencesFolder();
++#elif defined(__EMSCRIPTEN__)
++		path = fs::current_path();
+ #elif defined(__APPLE__)
+ 		const char *home = getenv("HOME");
+ 		if (!home)
+@@ -221,7 +223,11 @@ OSErr FindFolder(short vRefNum, OSType folderType, Boolean createFolder, short*
+ 	}
+ 	if (!exists && createFolder)
+ 	{
+-		fs::create_directories(path);
++		std::error_code ec;
++		if (!fs::create_directories(path, ec) && ec)
++		{
++			return ioErr;
++		}
+ 	}
+ 
+ 	*foundVRefNum = 0;//GetVolumeID(path);
+diff --git a/src/Files/HostVolume.cpp b/src/Files/HostVolume.cpp
+index 999a4b0..5d7f38a 100644
+--- a/src/Files/HostVolume.cpp
++++ b/src/Files/HostVolume.cpp
+@@ -294,13 +294,10 @@ OSErr HostVolume::DirCreate(long parentDirID, const u8string& directoryName, lon
+ 		}
+ 	}
+ 
+-	try
++	std::error_code ec;
++	if (!fs::create_directory(path, ec) && ec)
+ 	{
+-		fs::create_directory(path);
+-	}
+-	catch (const fs::filesystem_error& e)
+-	{
+-		std::cerr << __func__ << " threw " << e.what() << "\n";
++		std::cerr << __func__ << " create_directory failed: " << ec.message() << "\n";
+ 		return ioErr;
+ 	}
+ 
+diff --git a/src/SoundMixer/SoundManager.cpp b/src/SoundMixer/SoundManager.cpp
+index 76f238b..cb6a100 100644
+--- a/src/SoundMixer/SoundManager.cpp
++++ b/src/SoundMixer/SoundManager.cpp
+@@ -185,11 +185,7 @@ static void InstallSoundInChannel(SndChannelPtr chan, const Ptr sampledSoundHead
+ 			impl.source.sustainOffset = info.loopStart;
+ 		}
+ 
+-		// Check sustain loop end frame
+-		if ((int) info.loopEnd != impl.source.length)
+-		{
+-			TODO2("Warning: Unsupported sustain loop end frame");
+-		}
++		// Sustain loop end: cmixer always loops to end of buffer; custom loopEnd is ignored
+ 	}
+ 
+ 	//---------------------------------
