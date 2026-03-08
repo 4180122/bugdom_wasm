@@ -43,6 +43,20 @@ Then open `http://localhost:8080/Bugdom.html` (or the URL that loads `Bugdom.js`
 
 The CMake setup preloads the `Data` directory into the virtual filesystem so the game can find assets. The game is configured to look for data at `/Data` when built for Emscripten.
 
+## Deploy to Render (Static Site)
+
+Deploy the WASM build to [Render](https://render.com) as a **Static Site** (free tier):
+
+1. **Trigger a build** — Push to `main`; the workflow `.github/workflows/build-and-push-prebuilt.yml` builds WASM and pushes artifacts to the `prebuilt` branch
+2. **Create Static Site**: [dashboard.render.com](https://dashboard.render.com) → New → Static Site
+3. **Connect** your GitHub repo (e.g. `bugdom_wasm`)
+4. **Settings**:
+   - **Branch**: `prebuilt`
+   - **Build Command**: leave empty (or `echo "Pre-built"`)
+   - **Publish Directory**: `.`
+5. Click **Create Static Site** — Render serves the pre-built files from the branch
+6. Your game is live at `https://<service-name>.onrender.com`
+
 ## Notes
 
 - **Performance**: WebGL is GPU-accelerated. The build requests `powerPreference: high-performance` so the browser prefers a dedicated GPU when available. Bugdom uses fixed-function OpenGL emulated via LEGACY_GL_EMULATION, which adds CPU overhead; expect slower performance than native. Use `-DCMAKE_BUILD_TYPE=Release`. For tuning, experiment with **ASYNCIFY** or **PTHREADS** (extra link flags).

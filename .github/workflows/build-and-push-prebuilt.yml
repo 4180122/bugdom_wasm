@@ -1,0 +1,42 @@
+# Build WASM and push artifacts to prebuilt branch for Render Static Site
+# Render: New Static Site, branch = prebuilt, Build Command = (empty), Publish Directory = .
+
+name: Build and push to prebuilt
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write  # Required to push to prebuilt branch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: "latest"
+
+      - name: Build WASM
+        run: make wasm
+
+      - name: Prepare deploy
+        run: |
+          cd build-wasm
+          cp Bugdom.html index.html
+
+      - name: Push to prebuilt branch
+        run: |
+          cd build-wasm
+          git init -b prebuilt
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Deploy WASM build from ${{ github.sha }}"
+          git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" prebuilt
