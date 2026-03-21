@@ -118,8 +118,7 @@ retryVideo:
 
 	// Create window
 #if defined(__EMSCRIPTEN__)
-	// Emscripten: must request GLES/WebGL 2 for legacy GL emulation (USE_WEBGL2=1).
-	// SDL only sets WebGL 2 when major_version==3.
+	// Emscripten: request WebGL 2 for GLES3 renderer (SDL requires major_version==3).
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
@@ -178,9 +177,7 @@ retryVideo:
 	}
 
 #if defined(__EMSCRIPTEN__)
-	/* Force Emscripten legacy GL emulation init before GameMain.
-	   TexEnvJIT.init() must run before any glEnable (getCurTexUnit would be null).
-	   Must be the first GL call. */
+	/* Ensure a GL context exists before GameMain (Render_CreateContext may reuse it). */
 	{
 		SDL_GLContext ctx = SDL_GL_GetCurrentContext();
 		if (!ctx)
@@ -188,10 +185,7 @@ retryVideo:
 		if (!ctx)
 			SDL_Log("Emscripten: SDL_GL_CreateContext failed: %s", SDL_GetError());
 		else
-		{
 			SDL_GL_MakeCurrent(gSDLWindow, ctx);
-			glActiveTexture(GL_TEXTURE0);
-		}
 	}
 #endif
 

@@ -19,13 +19,6 @@ project(${GAME_TARGET}
 	VERSION ${GAME_VERSION}
 	LANGUAGES C CXX)
 
-# Emscripten: set legacy GL emulation early so -lGL resolves to the emu library.
-# Bugdom uses fixed-function OpenGL (glVertex3f, glLoadMatrixf, glLightfv, etc.)
-# which WebGL 2 doesn't provide natively.
-if(EMSCRIPTEN)
-	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -sLEGACY_GL_EMULATION -sGL_FFP_ONLY=1")
-endif()
-
 option(BUILD_SDL_FROM_SOURCE "Build SDL from source" OFF)
 option(SDL_STATIC "Static link SDL" OFF)
 
@@ -73,7 +66,6 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
 	if(NOT DEFINED SDL3_DIR)
 		set(SDL3_DIR "${CMAKE_SOURCE_DIR}/extern/SDL")
 	endif()
-	# -O3 can hurt performance on legacy GL emulation (Debug -O0 runs faster in practice).
 	# Use -O2 for Release; override via -DWASM_RELEASE_OPT=3 if you want full optimization.
 	set(WASM_RELEASE_OPT "2" CACHE STRING "Emscripten Release optimization: 0,1,2,3,s,z,g (default 2)")
 	if(CMAKE_BUILD_TYPE STREQUAL "Release")
@@ -125,7 +117,8 @@ if(NOT BUILD_SDL_FROM_SOURCE)
 		find_package(SDL3 CONFIG REQUIRED)
 	endif()
 else()
-	if(NOT DEFINED SDL3_DIR)
+	# Stale cache can set SDL3_DIR to *-NOTFOUND; always fall back to extern/SDL when invalid.
+	if(NOT DEFINED SDL3_DIR OR NOT EXISTS "${SDL3_DIR}/CMakeLists.txt")
 		set(SDL3_DIR "${CMAKE_SOURCE_DIR}/extern/SDL")
 	endif()
 	if(NOT EXISTS "${SDL3_DIR}/CMakeLists.txt")
@@ -155,7 +148,9 @@ endif()
 
 add_subdirectory(extern/Pomme)
 
-find_package(OpenGL REQUIRED)
+if(NOT EMSCRIPTEN)
+	find_package(OpenGL REQUIRED)
+endif()
 
 #------------------------------------------------------------------------------
 # EXECUTABLE TARGET
@@ -166,11 +161,6 @@ configure_file(${GAME_SRCDIR}/Headers/version.h.in ${GAME_SRCDIR}/Headers/versio
 
 # Glob all source files
 file(GLOB_RECURSE GAME_SOURCES CONFIGURE_DEPENDS ${GAME_SRCDIR}/*.c ${GAME_SRCDIR}/*.cpp ${GAME_SRCDIR}/*.h)
-
-# Emscripten: include gl_compat stub (glColorMaterial not in glemu). Exclude on native.
-if(NOT EMSCRIPTEN)
-	list(REMOVE_ITEM GAME_SOURCES "${GAME_SRCDIR}/QD3D/gl_compat_emscripten.c")
-endif()
 
 # Make source groups match file tree
 source_group(TREE ${GAME_SRCDIR} PREFIX "" FILES ${GAME_SOURCES})
@@ -266,30 +256,22 @@ if(NOT APPLE AND NOT WIN32 AND NOT EMSCRIPTEN)
 	target_link_libraries(${GAME_TARGET} PRIVATE m)
 endif()
 
-# Emscripten: preload Data into virtual FS, WebGL2, HTML shell, legacy GL emulation
-# Bugdom uses fixed-function OpenGL (glVertex3f, glLoadMatrixf, glLightfv, etc.)
-# which WebGL 2 doesn't provide; LEGACY_GL_EMULATION emulates these on top of WebGL.
-# Note: FULL_ES3 cannot be used with LEGACY_GL_EMULATION ("cannot emulate both ES2 and legacy GL").
+# Emscripten: preload Data, WebGL2 + GLES3 (native shaders; no legacy GL emulation).
 #
-# EMBED_DATA_FOR_WASM: Use --embed-file instead of --preload-file. Avoids "Unexpected error
-# while handling" when the .data fetch fails (e.g. CursorBrowser, some proxies). Trade-off:
-# Bugdom.js becomes ~70MB (Data inlined) vs separate Bugdom.data download.
+# EMBED_DATA_FOR_WASM: Use --embed-file instead of --preload-file. Avoids fetch issues for /Data.
 option(EMBED_DATA_FOR_WASM "Embed Data in JS (avoids .data fetch; use if preload fails)" OFF)
 if(EMSCRIPTEN)
-	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -sLEGACY_GL_EMULATION=1 -sGL_FFP_ONLY=1")
 	if(EMBED_DATA_FOR_WASM)
 		target_link_options(${GAME_TARGET} PRIVATE
 			"SHELL:-s USE_WEBGL2=1"
-			"SHELL:-s LEGACY_GL_EMULATION=1"
-			"SHELL:-s GL_FFP_ONLY=1"
+			"SHELL:-s FULL_ES3=1"
 			"SHELL:-s GL_UNSAFE_OPTS=0"
-			"SHELL:--pre-js ${CMAKE_SOURCE_DIR}/cmake/emscripten_gl_init_pre.js"
+			"SHELL:--pre-js ${CMAKE_SOURCE_DIR}/cmake/emscripten_pre.js"
 			"SHELL:--embed-file ${GAME_DATADIR}@/Data"
 			"SHELL:-s ALLOW_MEMORY_GROWTH=1"
 			"SHELL:-s ASSERTIONS=0"
 			"SHELL:-s ASYNCIFY=1"
 			"SHELL:-s ASYNCIFY_IMPORTS=emscripten_sleep"
-			"SHELL:-s EXPORTED_RUNTIME_METHODS=HEAP8,HEAPU8,HEAP32,HEAPF32"
 			"SHELL:-s EMULATE_FUNCTION_POINTER_CASTS=1"
 			"SHELL:-o ${GAME_TARGET}.html"
 		)
@@ -297,16 +279,14 @@ if(EMSCRIPTEN)
 	else()
 		target_link_options(${GAME_TARGET} PRIVATE
 			"SHELL:-s USE_WEBGL2=1"
-			"SHELL:-s LEGACY_GL_EMULATION=1"
-			"SHELL:-s GL_FFP_ONLY=1"
+			"SHELL:-s FULL_ES3=1"
 			"SHELL:-s GL_UNSAFE_OPTS=0"
-			"SHELL:--pre-js ${CMAKE_SOURCE_DIR}/cmake/emscripten_gl_init_pre.js"
+			"SHELL:--pre-js ${CMAKE_SOURCE_DIR}/cmake/emscripten_pre.js"
 			"SHELL:--preload-file ${GAME_DATADIR}@/Data"
 			"SHELL:-s ALLOW_MEMORY_GROWTH=1"
 			"SHELL:-s ASSERTIONS=0"
 			"SHELL:-s ASYNCIFY=1"
 			"SHELL:-s ASYNCIFY_IMPORTS=emscripten_sleep"
-			"SHELL:-s EXPORTED_RUNTIME_METHODS=HEAP8,HEAPU8,HEAP32,HEAPF32"
 			"SHELL:-s EMULATE_FUNCTION_POINTER_CASTS=1"
 			"SHELL:-o ${GAME_TARGET}.html"
 		)
@@ -322,10 +302,8 @@ endif()
 
 # Link core dependencies
 if(EMSCRIPTEN)
-	# Use legacy GL emulation library - provides glVertex3f, glLoadMatrixf, glLightfv, etc.
-	# that WebGL 2 doesn't have. Must match LEGACY_GL_EMULATION=1 in link flags above.
-	# SDL references emscripten_webgl_get_proc_address, so we must use getprocaddr variant.
-	target_link_libraries(${GAME_TARGET} PRIVATE Pomme "GL-emu-webgl2-getprocaddr")
+	# GLES3 / WebGL2 entry points (FULL_ES3); SDL uses emscripten_webgl_get_proc_address.
+	target_link_libraries(${GAME_TARGET} PRIVATE Pomme)
 else()
 	target_link_libraries(${GAME_TARGET} PRIVATE Pomme OpenGL::GL)
 endif()
@@ -414,15 +392,6 @@ else()
 		COMMAND ${CMAKE_COMMAND} -E copy
 			"${CMAKE_SOURCE_DIR}/packaging/bugdom-wasm.html"
 			"$<TARGET_FILE_DIR:${GAME_TARGET}>/Bugdom.html")
-	# Workaround: Emscripten legacy GL emulation bugs when using emscripten_webgl_* (SDL path).
-	# 1. getCurTexUnit returns null before TexEnvJIT.init() runs.
-	# 2. newRenderingFrameStarted crashes when tempVertexBufferCounters1 is uninitialized.
-	# 3. moduleContextCreatedCallbacks never run (GLImmediate.init, generateTempBuffers).
-	add_custom_command(TARGET ${GAME_TARGET} POST_BUILD
-		COMMAND ${CMAKE_COMMAND} -E env LC_ALL=C
-			sh "${CMAKE_SOURCE_DIR}/cmake/patch_emscripten_gl.sh"
-			"$<TARGET_FILE_DIR:${GAME_TARGET}>/Bugdom.js"
-		COMMENT "Patch Emscripten legacy GL emulation bugs")
 endif()
 
 if(APPLE)
@@ -451,3 +420,18 @@ endif()
 
 # Copy documentation to output folder
 configure_file(${CMAKE_SOURCE_DIR}/packaging/ReadMe.txt.in ${CMAKE_CURRENT_BINARY_DIR}/ReadMe.txt)
+
+#------------------------------------------------------------------------------
+# Unit tests (native only — documents Quesa vs GLSL matrix packing for WebGL2)
+#------------------------------------------------------------------------------
+
+if(NOT EMSCRIPTEN)
+	enable_testing()
+	add_executable(gles_matrix_test tests/gles_matrix_test.c)
+	target_include_directories(gles_matrix_test PRIVATE ${GAME_SRCDIR}/QD3D)
+	target_link_libraries(gles_matrix_test PRIVATE Pomme)
+	if(NOT APPLE AND NOT WIN32)
+		target_link_libraries(gles_matrix_test PRIVATE m)
+	endif()
+	add_test(NAME gles_matrix_test COMMAND gles_matrix_test)
+endif()

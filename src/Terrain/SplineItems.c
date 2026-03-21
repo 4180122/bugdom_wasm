@@ -455,6 +455,7 @@ void DrawSplines(void)
 		Boolean flat = gRealLevel == 5 && FindLiquidY(points[halfway].x, points[halfway].z, &flatY);
 		flatY += 150;
 
+#if !defined(__EMSCRIPTEN__)
 		glBegin(GL_LINE_STRIP);
 		for (int j = 0; j < spline->numPoints; j++)
 		{
@@ -505,6 +506,91 @@ void DrawSplines(void)
 			}
 		}
 		glEnd();
+#else
+		{
+			size_t cap = (size_t)spline->numPoints * 2 * 3;
+			float* stripBuf = (float*)AllocPtr(cap * sizeof(float));
+			int k = 0;
+			for (int j = 0; j < spline->numPoints; j++)
+			{
+				float x = points[j].x;
+				float z = points[j].z;
+				float y = flat? flatY: GetTerrainHeightAtCoord(x, z, FLOOR) + 10;
+				stripBuf[k++] = x;
+				stripBuf[k++] = y + (j&1) * 5;
+				stripBuf[k++] = z;
+				stripBuf[k++] = x;
+				stripBuf[k++] = y + (!(j&1)) * 5;
+				stripBuf[k++] = z;
+			}
+			Render_DrawDebugLines(GL_LINE_STRIP, stripBuf, k / 3, 1.f, 1.f, 1.f, 1.f);
+			DisposePtr((Ptr)stripBuf);
+
+			cap = (size_t)spline->numNubs * 64 * 3;
+			if (cap < 96)
+				cap = 96;
+			float* lineBuf = (float*)AllocPtr(cap * sizeof(float));
+			k = 0;
+			for (int nub = 0; nub < spline->numNubs; nub++)
+			{
+				float flagSize = nub == 0 ? 150 : 30;
+				float poleSize = flagSize;
+
+				float x = nubs[nub].x * MAP2UNIT_VALUE;
+				float z = nubs[nub].z * MAP2UNIT_VALUE;
+				float y1 = flat ? flatY : GetTerrainHeightAtCoord(x, z, FLOOR) + 17;
+				float y2 = y1 + poleSize;
+				GAME_ASSERT((size_t)k + 6 <= cap);
+				lineBuf[k++] = x;
+				lineBuf[k++] = y1;
+				lineBuf[k++] = z;
+				lineBuf[k++] = x;
+				lineBuf[k++] = y2;
+				lineBuf[k++] = z;
+
+				if (nub < spline->numNubs - 1)
+				{
+					TQ3Vector3D flagDir = { nubs[nub+1].x * MAP2UNIT_VALUE - x, 0, nubs[nub+1].z * MAP2UNIT_VALUE - z };
+					FastNormalizeVector(flagDir.x, flagDir.y, flagDir.z, &flagDir);
+
+					float y3 = y2 - flagSize * 0.25f;
+					float y4 = y2 - flagSize * 0.5f;
+
+					GAME_ASSERT((size_t)k + 12 <= cap);
+					lineBuf[k++] = x;
+					lineBuf[k++] = y2;
+					lineBuf[k++] = z;
+					lineBuf[k++] = x + flagDir.x * flagSize;
+					lineBuf[k++] = y3;
+					lineBuf[k++] = z + flagDir.z * flagSize;
+					lineBuf[k++] = x + flagDir.x * flagSize;
+					lineBuf[k++] = y3;
+					lineBuf[k++] = z + flagDir.z * flagSize;
+					lineBuf[k++] = x;
+					lineBuf[k++] = y4;
+					lineBuf[k++] = z;
+
+					if (nub == 0)
+					{
+						for (int baton = 0; baton < i + 1; baton++)
+						{
+							float x2 = x + ((2 + baton) * 4) * flagDir.x;
+							float z2 = z + ((2 + baton) * 4) * flagDir.z;
+							GAME_ASSERT((size_t)k + 6 <= cap);
+							lineBuf[k++] = x2;
+							lineBuf[k++] = y3-10;
+							lineBuf[k++] = z2;
+							lineBuf[k++] = x2;
+							lineBuf[k++] = y3+10;
+							lineBuf[k++] = z2;
+						}
+					}
+				}
+			}
+			Render_DrawDebugLines(GL_LINES, lineBuf, k / 3, 1.f, 1.f, 1.f, 1.f);
+			DisposePtr((Ptr)lineBuf);
+		}
+#endif
 	}
 }
 

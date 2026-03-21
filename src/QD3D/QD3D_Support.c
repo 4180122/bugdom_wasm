@@ -11,7 +11,11 @@
 /****************************/
 
 #include "game.h"
+#if defined(__EMSCRIPTEN__)
+#include "gles3_rhi.h"
+#else
 #include <SDL3/SDL_opengl.h>
+#endif
 
 
 /****************************/
@@ -154,9 +158,7 @@ QD3DSetupOutputType	*outputPtr;
 
 	SDL_GL_SetSwapInterval(gGamePrefs.vsync);
 
-	/* Must init GL state (incl. matrix stack) before CreateLights; Emscripten legacy GL
-	   emulation's glLightfv(GL_POSITION) uses modelview matrix, which is undefined until
-	   glMatrixMode/glLoadIdentity have been called at least once. */
+	/* Must init GL/GLES3 pipeline state before CreateLights. */
 	Render_InitState(&setupDefPtr->view.clearColor);
 
 	CreateLights(&setupDefPtr->lights);
@@ -220,6 +222,7 @@ static void CreateLights(QD3DLightDefType *lightDefPtr)
 			/* CREATE AMBIENT LIGHT */
 			/************************/
 
+#if !defined(__EMSCRIPTEN__)
 	if (lightDefPtr->ambientBrightness != 0)						// see if ambient exists
 	{
 		GLfloat ambient[4] =
@@ -269,6 +272,9 @@ static void CreateLights(QD3DLightDefType *lightDefPtr)
 	{
 		glDisable(GL_LIGHT0 + i);
 	}
+#else
+	GLES3_LoadLightColors(lightDefPtr);
+#endif
 }
 
 
@@ -601,10 +607,18 @@ void ShowNormal(TQ3Point3D *where, TQ3Vector3D *normal)
 
 void DrawNormal(void)
 {
+#if !defined(__EMSCRIPTEN__)
 	glBegin(GL_LINES);
 	glVertex3f(gNormalWhere.x, gNormalWhere.y, gNormalWhere.z);
 	glVertex3f(gNormalWhere.x + gNormal.x * 400.0f, gNormalWhere.y + gNormal.y * 400.0f, gNormalWhere.z + gNormal.z * 400.0f);
 	glEnd();
+#else
+	float v[6] = {
+		gNormalWhere.x, gNormalWhere.y, gNormalWhere.z,
+		gNormalWhere.x + gNormal.x * 400.0f, gNormalWhere.y + gNormal.y * 400.0f, gNormalWhere.z + gNormal.z * 400.0f,
+	};
+	Render_DrawDebugLines(GL_LINES, v, 2, 1.f, 1.f, 1.f, 1.f);
+#endif
 }
 
 /************ LAY OUT TEXT IN DEBUG TEXT MESH *****************/

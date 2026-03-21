@@ -10,6 +10,9 @@
 /****************************/
 
 #include "game.h"
+#if defined(__EMSCRIPTEN__)
+#include "gles3_rhi.h"
+#endif
 
 
 /****************************/
@@ -351,7 +354,9 @@ void CalcCameraMatrixInfo(QD3DSetupOutputType *setupInfo)
 {
 			/* INIT PROJECTION MATRIX */
 
+#if !defined(__EMSCRIPTEN__)
 	glMatrixMode(GL_PROJECTION);
+#endif
 
 	FillProjectionMatrix(
 			&gCameraViewToFrustumMatrix,
@@ -360,11 +365,13 @@ void CalcCameraMatrixInfo(QD3DSetupOutputType *setupInfo)
 			setupInfo->hither,
 			setupInfo->yon);
 
+#if !defined(__EMSCRIPTEN__)
 	glLoadMatrixf((const GLfloat*) &gCameraViewToFrustumMatrix.value[0][0]);
 
 			/* INIT MODELVIEW MATRIX */
 
 	glMatrixMode(GL_MODELVIEW);
+#endif
 
 	FillLookAtMatrix(
 			&gCameraWorldToViewMatrix,
@@ -372,6 +379,7 @@ void CalcCameraMatrixInfo(QD3DSetupOutputType *setupInfo)
 			&setupInfo->currentCameraLookAt,
 			&setupInfo->currentCameraUpVector);
 
+#if !defined(__EMSCRIPTEN__)
 	glLoadMatrixf((const GLfloat*) &gCameraWorldToViewMatrix.value[0][0]);
 
 			/* UPDATE LIGHT POSITIONS */
@@ -386,6 +394,10 @@ void CalcCameraMatrixInfo(QD3DSetupOutputType *setupInfo)
 		lightVec[3] = 0;									// when w==0, this is a directional light, if 1 then point light
 		glLightfv(GL_LIGHT0+i, GL_POSITION, lightVec);
 	}
+#else
+	GLES3_SetCameraMatrices(&gCameraViewToFrustumMatrix, &gCameraWorldToViewMatrix);
+	GLES3_UpdateLightDirections(&setupInfo->lightList, &gCameraWorldToViewMatrix);
+#endif
 
 
 			/* GET CAMERA VIEW MATRIX INFO */

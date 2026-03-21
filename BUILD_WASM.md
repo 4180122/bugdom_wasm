@@ -59,6 +59,6 @@ Deploy the WASM build to [Render](https://render.com) as a **Static Site** (free
 
 ## Notes
 
-- **Performance**: WebGL is GPU-accelerated. The build requests `powerPreference: high-performance` so the browser prefers a dedicated GPU when available. Bugdom uses fixed-function OpenGL emulated via LEGACY_GL_EMULATION, which adds CPU overhead; expect slower performance than native. Use `-DCMAKE_BUILD_TYPE=Release`. For tuning, experiment with **ASYNCIFY** or **PTHREADS** (extra link flags).
+- **Performance**: WebGL is GPU-accelerated. The build requests `powerPreference: high-performance` so the browser prefers a dedicated GPU when available. Bugdom uses a native WebGL2/GLES3 renderer (`gles3_rhi.c`). Use `-DCMAKE_BUILD_TYPE=Release` for production.
 - **SDL3**: Building SDL3 from source for Emscripten is required; the macOS/Windows pre-built packages are native only.
 - **Testing**: Prefer a recent Chrome, Firefox, or Safari for WebAssembly and WebGL 2.

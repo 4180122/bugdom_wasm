@@ -1,7 +1,7 @@
 # Bugdom - Quick build targets
 # Use: make <target>
 
-.PHONY: all clean wasm wasm-clean wasm-debug wasm-debug-clean native native-clean deps submodule-setup help
+.PHONY: all clean wasm wasm-clean wasm-debug wasm-debug-clean native native-clean matrix-test deps submodule-setup help
 
 # Use all CPU cores for parallel builds
 JOBS := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
@@ -51,8 +51,7 @@ wasm-clean:
 	rm -rf $(WASM_DIR)
 	@echo "WASM build dir cleaned."
 
-# Debug build type runs faster than Release with legacy GL emulation (JS minification/link-step).
-# Even -O0 Release is slower; use Debug config for production WASM.
+# Debug build type is recommended for WASM (faster link, better devtools support).
 wasm-configure: deps wasm-clean
 	emcmake cmake -S . -B $(WASM_DIR) \
 		-DCMAKE_BUILD_TYPE=Debug \
@@ -93,21 +92,6 @@ submodule-setup:
 		echo "SDL emscripten patch applied." || echo "SDL patch skipped (changes already present or incompatible)."; \
 	fi
 
-# Re-apply glemu patches without full rebuild (run after editing cmake/patch_emscripten_gl.sh)
-wasm-patch:
-	@test -f $(WASM_DIR)/Bugdom.js.orig || (echo "Run 'make wasm' or 'make wasm-embed' first"; exit 1)
-	cp $(WASM_DIR)/Bugdom.js.orig $(WASM_DIR)/Bugdom.js
-	sh cmake/patch_emscripten_gl.sh $(WASM_DIR)/Bugdom.js
-	@echo "$(WASM_DIR): patches reapplied."
-	@if [ -f $(WASM_DEBUG_DIR)/Bugdom.js.orig ]; then \
-		cp $(WASM_DEBUG_DIR)/Bugdom.js.orig $(WASM_DEBUG_DIR)/Bugdom.js; \
-		sh cmake/patch_emscripten_gl.sh $(WASM_DEBUG_DIR)/Bugdom.js; \
-		echo "$(WASM_DEBUG_DIR): patches reapplied."; \
-	else \
-		echo "$(WASM_DEBUG_DIR): skipped (no .orig; run 'make wasm-debug' first)."; \
-	fi
-	@echo "Refresh browser to test."
-
 #----------------------------------------------------------------------
 # WASM Debug build (pretty-printed JS for devtools)
 #----------------------------------------------------------------------
@@ -128,12 +112,6 @@ wasm-debug: wasm-debug-configure
 wasm-debug-rebuild:
 	emmake cmake --build $(WASM_DEBUG_DIR) -j$(JOBS)
 
-wasm-debug-patch:
-	@test -f $(WASM_DEBUG_DIR)/Bugdom.js.orig || (echo "Run 'make wasm-debug' first"; exit 1)
-	cp $(WASM_DEBUG_DIR)/Bugdom.js.orig $(WASM_DEBUG_DIR)/Bugdom.js
-	sh cmake/patch_emscripten_gl.sh $(WASM_DEBUG_DIR)/Bugdom.js
-	@echo "Debug patches reapplied. Refresh browser to test."
-
 #----------------------------------------------------------------------
 # Native Linux build
 #----------------------------------------------------------------------
@@ -153,6 +131,10 @@ native: native-configure
 
 native-rebuild:
 	cmake --build $(NATIVE_DIR) -j$(JOBS)
+
+# Quesa→GLSL matrix packing unit test (requires configured native build/)
+matrix-test:
+	cd $(NATIVE_DIR) && ctest -R gles_matrix_test --output-on-failure
 
 #----------------------------------------------------------------------
 # Serve WASM (for testing in browser)
@@ -179,17 +161,16 @@ help:
 	@echo "  make wasm          - Clean + configure + build WASM (Debug config for best perf)"
 	@echo "  make wasm-embed    - Same but embed Data in JS (avoids .data fetch errors)"
 	@echo "  make wasm-rebuild  - Rebuild WASM only (no clean)"
-	@echo "  make wasm-patch    - Re-apply glemu patches (Release + Debug if built)"
 	@echo "  make wasm-clean    - Remove build-wasm/"
 	@echo ""
 	@echo "  make wasm-debug    - Clean + configure + build WASM Debug (pretty-printed JS)"
 	@echo "  make wasm-debug-rebuild  - Rebuild WASM Debug only"
-	@echo "  make wasm-debug-patch    - Re-apply glemu patches on Debug build only"
 	@echo "  make wasm-debug-clean    - Remove build-wasm-debug/"
 	@echo ""
 	@echo "  make native        - Clean + configure + build native Linux"
 	@echo "  make native-rebuild - Rebuild native only"
 	@echo "  make native-clean  - Remove build/"
+	@echo "  make matrix-test    - Run gles_matrix_test (ctest; needs native CMake build)"
 	@echo ""
 	@echo "  make serve         - Serve build-wasm/ on http://localhost:8080 (Python)"
 	@echo "  make serve-npx     - Serve Release on :8080 (npx, handles .data better)"

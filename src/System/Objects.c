@@ -918,6 +918,7 @@ float			left,right,top,bottom,front,back;
 
 			/* DRAW TOP */
 
+#if !defined(__EMSCRIPTEN__)
 		glBegin(GL_LINE_STRIP);
 		glVertex3f(left,		top,		back);
 		glVertex3f(left,		top,		front);
@@ -948,5 +949,32 @@ float			left,right,top,bottom,front,back;
 		glVertex3f(right,		top,		front);
 		glVertex3f(right,		bottom,		front);
 		glEnd();
+#else
+		{
+			float topStrip[15] = {
+				left, top, back,
+				left, top, front,
+				right, top, front,
+				right, top, back,
+				left, top, back,
+			};
+			float botStrip[15] = {
+				left, bottom, back,
+				left, bottom, front,
+				right, bottom, front,
+				right, bottom, back,
+				left, bottom, back,
+			};
+			float sideLines[24] = {
+				left, top, back, left, bottom, back,
+				left, top, front, left, bottom, front,
+				right, top, back, right, bottom, back,
+				right, top, front, right, bottom, front,
+			};
+			Render_DrawDebugLines(GL_LINE_STRIP, topStrip, 5, 1.f, 1.f, 1.f, 1.f);
+			Render_DrawDebugLines(GL_LINE_STRIP, botStrip, 5, 1.f, 1.f, 1.f, 1.f);
+			Render_DrawDebugLines(GL_LINES, sideLines, 8, 1.f, 1.f, 1.f, 1.f);
+		}
+#endif
 	}
 }

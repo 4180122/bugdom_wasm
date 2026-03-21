@@ -54,8 +54,8 @@ static void UpdateDebugStats(void)
 				gLiquidCheat ? "Liquid cheat ON" : "",
 				GAME_VERSION,
 				SDL_GetRevision(),
-				glGetString(GL_VERSION),
-				glGetString(GL_RENDERER),
+				(const char*)glGetString(GL_VERSION),
+				(const char*)glGetString(GL_RENDERER),
 				gWindowWidth,
 				gWindowHeight
 		);
@@ -136,6 +136,8 @@ void DoSDLMaintenance(void)
 		gDebugTextLastUpdatedAt = 0;
 		QD3D_UpdateDebugTextMesh(NULL);
 
+#if !defined(__EMSCRIPTEN__)
 		glPolygonMode(GL_FRONT_AND_BACK, gDebugMode == DEBUG_MODE_WIREFRAME? GL_LINE: GL_FILL);
+#endif
 	}
 }

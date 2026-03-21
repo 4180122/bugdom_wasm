@@ -1,7 +1,27 @@
 #pragma once
 
 #include <QD3D.h>
+#if defined(__EMSCRIPTEN__)
+#include <GLES3/gl3.h>
+/* Pixel enums used by 3DMF/terrain loaders; Render_LoadTexture converts for WebGL upload. */
+#ifndef GL_BGRA
+#define GL_BGRA 0x80E1
+#endif
+#ifndef GL_BGR
+#define GL_BGR 0x80E0
+#endif
+#ifndef GL_UNSIGNED_INT_8_8_8_8_REV
+#define GL_UNSIGNED_INT_8_8_8_8_REV 0x8367
+#endif
+#ifndef GL_UNSIGNED_SHORT_1_5_5_5_REV
+#define GL_UNSIGNED_SHORT_1_5_5_5_REV 0x8366
+#endif
+#ifndef GL_BGRA_EXT
+#define GL_BGRA_EXT GL_BGRA
+#endif
+#else
 #include <SDL3/SDL_opengl.h>
+#endif
 
 #if _DEBUG
 #define CHECK_GL_ERROR()												\
@@ -106,6 +126,7 @@ void Render_DisableFog(void);
 #pragma mark -
 
 void Render_BindTexture(GLuint textureName);
+void Render_InvalidateTextureCache(void);
 
 // Wrapper for glTexImage that takes care of all the boilerplate associated with texture creation.
 // Returns an OpenGL texture name.
@@ -190,6 +211,10 @@ void Render_Exit2D(void);
 #pragma mark -
 
 void Render_DrawFadeOverlay(float opacity);
+
+#if defined(__EMSCRIPTEN__)
+void Render_DrawDebugLines(GLenum mode, const float* xyz, int nverts, float r, float g, float b, float a);
+#endif
 
 #pragma mark -
 

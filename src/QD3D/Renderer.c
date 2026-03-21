@@ -9,10 +9,9 @@
 
 #include "game.h"
 #include <SDL3/SDL.h>
-#include <SDL3/SDL_opengl.h>
 #include <QD3D.h>
 #if defined(__EMSCRIPTEN__)
-#include <emscripten.h>
+#include "gles3_rhi.h"
 #endif
 
 #pragma mark -
@@ -62,13 +61,70 @@ static bool					gFrameStarted = false;
 
 static float				gBackupVertexColors[4*65536];
 
+#if defined(__EMSCRIPTEN__)
+/*
+ * Emscripten's WebGL2 C bindings do not link glGetTexLevelParameteriv. Track 2D
+ * texture dimensions for anything created via Render_LoadTexture (the only
+ * allocation path in this project) so Render_UpdateTexture can clamp sub-rects.
+ */
+#define RENDER_EMSCRIPTEN_TEX_DIM_MAX 512
+typedef struct
+{
+	GLuint	name;
+	int		w;
+	int		h;
+} RenderEmscriptenTexDimEntry;
+
+static RenderEmscriptenTexDimEntry	gEmscriptenTex2DSize[RENDER_EMSCRIPTEN_TEX_DIM_MAX];
+static int							gEmscriptenTex2DSizeCount;
+
+static void Render_Emscripten_RecordTex2DSize(GLuint name, int w, int h)
+{
+	int i;
+	for (i = 0; i < gEmscriptenTex2DSizeCount; i++)
+	{
+		if (gEmscriptenTex2DSize[i].name == name)
+		{
+			gEmscriptenTex2DSize[i].w = w;
+			gEmscriptenTex2DSize[i].h = h;
+			return;
+		}
+	}
+	if (gEmscriptenTex2DSizeCount < RENDER_EMSCRIPTEN_TEX_DIM_MAX)
+	{
+		gEmscriptenTex2DSize[gEmscriptenTex2DSizeCount].name = name;
+		gEmscriptenTex2DSize[gEmscriptenTex2DSizeCount].w = w;
+		gEmscriptenTex2DSize[gEmscriptenTex2DSizeCount].h = h;
+		gEmscriptenTex2DSizeCount++;
+	}
+}
+
+static void Render_Emscripten_LookupTex2DSize(GLuint name, int* outW, int* outH)
+{
+	int i;
+	for (i = 0; i < gEmscriptenTex2DSizeCount; i++)
+	{
+		if (gEmscriptenTex2DSize[i].name == name)
+		{
+			*outW = gEmscriptenTex2DSize[i].w;
+			*outH = gEmscriptenTex2DSize[i].h;
+			return;
+		}
+	}
+	*outW = 0x7fffffff;
+	*outH = 0x7fffffff;
+}
+#endif
+
 static int DrawOrderComparator(void const* a_void, void const* b_void);
 
-static void BeginDepthPass(const MeshQueueEntry* entry);
 static void BeginShadingPass(const MeshQueueEntry* entry);
 static void PrepareOpaqueShading(const MeshQueueEntry* entry);
 static void PrepareAlphaShading(const MeshQueueEntry* entry);
+#if !defined(__EMSCRIPTEN__)
+static void BeginDepthPass(const MeshQueueEntry* entry);
 static void SendGeometry(const MeshQueueEntry* entry);
+#endif
 
 
 #pragma mark -
@@ -138,6 +194,8 @@ static TQ3TriMeshData* gFullscreenQuad = nil;
 /****************************/
 /*    MACROS/HELPERS        */
 /****************************/
+
+#if !defined(__EMSCRIPTEN__)
 
 static void __SetInitialState(GLenum stateEnum, bool* stateFlagPtr, bool initialValue)
 {
@@ -212,6 +270,15 @@ static inline void SetColorMask(GLboolean enable)
 	}
 }
 
+#else /* __EMSCRIPTEN__ */
+
+static inline void SetColorMask(GLboolean enable)
+{
+	glColorMask(enable, enable, enable, enable);
+}
+
+#endif /* !__EMSCRIPTEN__ */
+
 #pragma mark -
 
 //=======================================================================================================
@@ -232,8 +299,6 @@ void DoFatalGLError(GLenum error, const char* file, int line)
 void Render_CreateContext(void)
 {
 #if defined(__EMSCRIPTEN__)
-	/* Boot already created the context for glActiveTexture init. SDL allows
-	   only one WebGL context per canvas, so reuse it instead of creating another. */
 	gGLContext = SDL_GL_GetCurrentContext();
 	if (!gGLContext)
 		gGLContext = SDL_GL_CreateContext(gSDLWindow);
@@ -244,11 +309,9 @@ void Render_CreateContext(void)
 	GAME_ASSERT(gGLContext);
 
 #if defined(__EMSCRIPTEN__)
-	/* Emscripten legacy GL emulation: TexEnvJIT.init() must run before any
-	   glEnable, or getCurTexUnit() returns null. glActiveTexture triggers
-	   the setup chain (GLImmediate -> setupHooks -> GLEmulation.init). */
 	SDL_GL_MakeCurrent(gSDLWindow, gGLContext);
 	glActiveTexture(GL_TEXTURE0);
+	GLES3_Init();
 #endif
 
 	// On Windows, proc addresses are only valid for the current context,
@@ -258,6 +321,9 @@ void Render_CreateContext(void)
 
 void Render_DeleteContext(void)
 {
+#if defined(__EMSCRIPTEN__)
+	GLES3_Shutdown();
+#endif
 	if (gGLContext)
 	{
 		SDL_GL_DestroyContext(gGLContext);
@@ -272,8 +338,7 @@ void Render_SetDefaultModifiers(RenderModifiers* dest)
 
 void Render_InitState(const TQ3ColorRGBA* clearColor)
 {
-	/* Emscripten legacy GL emulation: texture unit state must be initialized
-	   before any glEnable(GL_TEXTURE_2D) etc., or getCurTexUnit() returns null. */
+#if !defined(__EMSCRIPTEN__)
 	glActiveTexture(GL_TEXTURE0);
 
 	SetInitialClientState(GL_VERTEX_ARRAY,				true);
@@ -300,17 +365,24 @@ void Render_InitState(const TQ3ColorRGBA* clearColor)
 	gState.wantColorMask = true;			// must match glColorMask call above!
 
 	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-	
+#else
+	glActiveTexture(GL_TEXTURE0);
+	GLES3_InitPipelineState(clearColor->r, clearColor->g, clearColor->b);
+	gState.blendFuncIsAdditive = false;
 	gState.boundTexture = 0;
+#endif
+	
 	gState.sceneHasFog = false;
 	gState.currentTransform = NULL;
 
 	glClearColor(clearColor->r, clearColor->g, clearColor->b, 1.0f);
 	
+#if !defined(__EMSCRIPTEN__)
 	// Set misc GL defaults that apply throughout the entire game
 	glAlphaFunc(GL_GREATER, 0.4999f);
 	glFrontFace(GL_CCW);
 	glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
+#endif
 
 	// Set up mesh queue
 	gMeshQueueSize = 0;
@@ -346,16 +418,23 @@ void Render_EnableFog(
 {
 	(void) camHither;
 
+#if !defined(__EMSCRIPTEN__)
 	glHint(GL_FOG_HINT,		GL_NICEST);
 	glFogi(GL_FOG_MODE,		GL_LINEAR);
 	glFogf(GL_FOG_START,	fogHither * camYon);
 	glFogf(GL_FOG_END,		fogYon * camYon);
 	glFogfv(GL_FOG_COLOR,	&fogColor.r);
+#else
+	GLES3_SetFog(true, fogHither * camYon, fogYon * camYon, fogColor.r, fogColor.g, fogColor.b);
+#endif
 	gState.sceneHasFog = true;
 }
 
 void Render_DisableFog(void)
 {
+#if defined(__EMSCRIPTEN__)
+	GLES3_SetFog(false, 0.f, 1.f, 0.f, 0.f, 0.f);
+#endif
 	gState.sceneHasFog = false;
 }
 
@@ -370,76 +449,10 @@ void Render_BindTexture(GLuint textureName)
 	}
 }
 
-#if defined(__EMSCRIPTEN__)
-/* WebGL doesn't support GL_BGRA, GL_BGR, GL_UNSIGNED_INT_8_8_8_8_REV,
- * GL_UNSIGNED_SHORT_1_5_5_5_REV. Convert to RGBA/RGB + UNSIGNED_BYTE. */
-static void ConvertPixelsForWebGL(
-		GLenum bufferFormat,
-		GLenum bufferType,
-		const GLvoid* pixels,
-		int width,
-		int height,
-		GLenum* outFormat,
-		GLenum* outType,
-		GLvoid** outPixels)
+void Render_InvalidateTextureCache(void)
 {
-	*outFormat = bufferFormat;
-	*outType = bufferType;
-	*outPixels = (GLvoid*) pixels;
-
-	if (bufferFormat == 0x80E1 && bufferType == 0x8367) /* GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV */
-	{
-		/* ARGB in memory -> RGBA */
-		int n = width * height;
-		uint8_t* conv = (uint8_t*) AllocPtr(n * 4);
-		const uint8_t* src = (const uint8_t*) pixels;
-		for (int i = 0; i < n; i++)
-		{
-			conv[i*4+0] = src[i*4+1]; /* R */
-			conv[i*4+1] = src[i*4+2]; /* G */
-			conv[i*4+2] = src[i*4+3]; /* B */
-			conv[i*4+3] = src[i*4+0]; /* A */
-		}
-		*outFormat = GL_RGBA;
-		*outType = GL_UNSIGNED_BYTE;
-		*outPixels = conv;
-	}
-	else if (bufferFormat == 0x80E0 && bufferType == GL_UNSIGNED_BYTE) /* GL_BGR */
-	{
-		/* BGR -> RGB */
-		int n = width * height;
-		uint8_t* conv = (uint8_t*) AllocPtr(n * 3);
-		const uint8_t* src = (const uint8_t*) pixels;
-		for (int i = 0; i < n; i++)
-		{
-			conv[i*3+0] = src[i*3+2];
-			conv[i*3+1] = src[i*3+1];
-			conv[i*3+2] = src[i*3+0];
-		}
-		*outFormat = GL_RGB;
-		*outType = GL_UNSIGNED_BYTE;
-		*outPixels = conv;
-	}
-	else if (bufferFormat == 0x80E1 && bufferType == 0x8366) /* GL_BGRA/EXT, GL_UNSIGNED_SHORT_1_5_5_5_REV */
-	{
-		/* 16-bit 1555 -> RGBA8. Bits: 15=A, 10-14=R, 5-9=G, 0-4=B */
-		int n = width * height;
-		uint8_t* conv = (uint8_t*) AllocPtr(n * 4);
-		const uint16_t* src = (const uint16_t*) pixels;
-		for (int i = 0; i < n; i++)
-		{
-			uint16_t w = src[i];
-			conv[i*4+0] = (uint8_t)(((w >> 10) & 0x1F) * 255 / 31);
-			conv[i*4+1] = (uint8_t)(((w >> 5) & 0x1F) * 255 / 31);
-			conv[i*4+2] = (uint8_t)((w & 0x1F) * 255 / 31);
-			conv[i*4+3] = (uint8_t)(((w >> 15) & 1) * 255);
-		}
-		*outFormat = GL_RGBA;
-		*outType = GL_UNSIGNED_BYTE;
-		*outPixels = conv;
-	}
+	gState.boundTexture = 0;
 }
-#endif
 
 GLuint Render_LoadTexture(
 		GLenum internalFormat,
@@ -542,6 +555,7 @@ GLuint Render_LoadTexture(
 		    uploadFormat, uploadType, uploadPixels);
 	if (convertedBuffer)
 		DisposePtr((Ptr)convertedBuffer);
+	Render_Emscripten_RecordTex2DSize(textureName, width, height);
 #else
 	glTexImage2D(
 			GL_TEXTURE_2D,
@@ -570,73 +584,180 @@ void Render_UpdateTexture(
 		const GLvoid* pixels,
 		int rowBytesInInput)
 {
+	glBindTexture(GL_TEXTURE_2D, textureName);
+	gState.boundTexture = textureName;
+
+#if !defined(__EMSCRIPTEN__)
 	GLint pUnpackRowLength = 0;
-
-	Render_BindTexture(textureName);
-
 	// Set unpack row length (if valid rowbytes input given)
 	if (rowBytesInInput > 0)
 	{
 		glGetIntegerv(GL_UNPACK_ROW_LENGTH, &pUnpackRowLength);
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, rowBytesInInput);
 	}
+#endif
 
 #if defined(__EMSCRIPTEN__)
+	CHECK_GL_ERROR();
+
+	if (width <= 0 || height <= 0 || pixels == NULL)
+		return;
+
+	const int srcRowPixels = (rowBytesInInput > 0) ? rowBytesInInput : width;
+
+	int texW = 0;
+	int texH = 0;
+	Render_Emscripten_LookupTex2DSize(textureName, &texW, &texH);
+	if (texW <= 0 || texH <= 0)
+		return;
+
+	int rx = x;
+	int ry = y;
+	int rw = width;
+	int rh = height;
+	if (rx < 0)
+	{
+		rw += rx;
+		rx = 0;
+	}
+	if (ry < 0)
+	{
+		rh += ry;
+		ry = 0;
+	}
+	if (rx + rw > texW)
+		rw = texW - rx;
+	if (ry + rh > texH)
+		rh = texH - ry;
+	if (rw <= 0 || rh <= 0)
+		return;
+
+	const int dx = rx - x;
+	const int dy = ry - y;
+
+	/* GLES headers may use different token values than our renderer.h aliases — keep hex fallbacks. */
+	const int isBGRAfmt = (bufferFormat == GL_BGRA || bufferFormat == (GLenum)0x80E1);
+	const int isBGRfmt = (bufferFormat == GL_BGR || bufferFormat == (GLenum)0x80E0);
+
+	int srcBpp = 4;
+	if (isBGRfmt && bufferType == GL_UNSIGNED_BYTE)
+		srcBpp = 3;
+	else if (isBGRAfmt && bufferType == GL_UNSIGNED_SHORT_1_5_5_5_REV)
+		srcBpp = 2;
+	else if (isBGRAfmt && bufferType == GL_UNSIGNED_INT_8_8_8_8_REV)
+		srcBpp = 4;
+
+	const uint8_t* srcBase = (const uint8_t*)pixels
+			+ (size_t)dy * (size_t)srcRowPixels * (size_t)srcBpp
+			+ (size_t)dx * (size_t)srcBpp;
+
 	/* Same format conversion as Render_LoadTexture for WebGL compatibility. */
 	GLenum uploadFormat = bufferFormat;
 	GLenum uploadType = bufferType;
-	const GLvoid* uploadPixels = pixels;
+	const GLvoid* uploadPixels = srcBase;
 	void* convertedBuffer = NULL;
 
-	if ((bufferFormat == 0x80E1 && bufferType == 0x8367) ||
-	    (bufferFormat == 0x80E1 && bufferType == 0x8366))
+	if ((isBGRAfmt && bufferType == GL_UNSIGNED_INT_8_8_8_8_REV) ||
+	    (isBGRAfmt && bufferType == GL_UNSIGNED_SHORT_1_5_5_5_REV))
 	{
 		uploadFormat = GL_RGBA;
 		uploadType = GL_UNSIGNED_BYTE;
-		convertedBuffer = AllocPtr((size_t)width * height * 4);
-		if (bufferType == 0x8367)
+		convertedBuffer = AllocPtr((size_t)rw * rh * 4);
+		uint8_t* dst = (uint8_t*)convertedBuffer;
+		if (bufferType == GL_UNSIGNED_INT_8_8_8_8_REV)
 		{
-			const uint8_t* src = (const uint8_t*)pixels;
-			uint8_t* dst = (uint8_t*)convertedBuffer;
-			for (int i = 0; i < width * height; i++)
+			for (int j = 0; j < rh; j++)
 			{
-				dst[i*4+0] = src[i*4+1]; dst[i*4+1] = src[i*4+2];
-				dst[i*4+2] = src[i*4+3]; dst[i*4+3] = src[i*4+0];
+				const uint8_t* row = srcBase + (size_t)j * (size_t)srcRowPixels * 4;
+				for (int i = 0; i < rw; i++)
+				{
+					size_t o = (size_t)j * (size_t)rw + (size_t)i;
+					dst[o * 4 + 0] = row[i * 4 + 1];
+					dst[o * 4 + 1] = row[i * 4 + 2];
+					dst[o * 4 + 2] = row[i * 4 + 3];
+					dst[o * 4 + 3] = row[i * 4 + 0];
+				}
 			}
 		}
 		else
 		{
-			const uint16_t* src = (const uint16_t*)pixels;
-			uint8_t* dst = (uint8_t*)convertedBuffer;
-			for (int i = 0; i < width * height; i++)
+			for (int j = 0; j < rh; j++)
 			{
-				uint16_t w = src[i];
-				dst[i*4+0] = (uint8_t)(((w >> 10) & 0x1F) * 255 / 31);
-				dst[i*4+1] = (uint8_t)(((w >> 5) & 0x1F) * 255 / 31);
-				dst[i*4+2] = (uint8_t)((w & 0x1F) * 255 / 31);
-				dst[i*4+3] = (uint8_t)(((w >> 15) & 1) * 255);
+				const uint16_t* row = (const uint16_t*)(srcBase + (size_t)j * (size_t)srcRowPixels * 2);
+				for (int i = 0; i < rw; i++)
+				{
+					uint16_t wv = row[i];
+					size_t o = (size_t)j * (size_t)rw + (size_t)i;
+					dst[o * 4 + 0] = (uint8_t)(((wv >> 10) & 0x1F) * 255 / 31);
+					dst[o * 4 + 1] = (uint8_t)(((wv >> 5) & 0x1F) * 255 / 31);
+					dst[o * 4 + 2] = (uint8_t)((wv & 0x1F) * 255 / 31);
+					dst[o * 4 + 3] = (uint8_t)(((wv >> 15) & 1) * 255);
+				}
 			}
 		}
 		uploadPixels = convertedBuffer;
 	}
-	else if (bufferFormat == 0x80E0 && bufferType == GL_UNSIGNED_BYTE)
+	else if (isBGRfmt && bufferType == GL_UNSIGNED_BYTE)
 	{
 		uploadFormat = GL_RGB;
 		uploadType = GL_UNSIGNED_BYTE;
-		convertedBuffer = AllocPtr((size_t)width * height * 3);
-		const uint8_t* src = (const uint8_t*)pixels;
+		convertedBuffer = AllocPtr((size_t)rw * rh * 3);
 		uint8_t* dst = (uint8_t*)convertedBuffer;
-		for (int i = 0; i < width * height; i++)
+		for (int j = 0; j < rh; j++)
 		{
-			dst[i*3+0] = src[i*3+2];
-			dst[i*3+1] = src[i*3+1];
-			dst[i*3+2] = src[i*3+0];
+			const uint8_t* row = srcBase + (size_t)j * (size_t)srcRowPixels * 3;
+			for (int i = 0; i < rw; i++)
+			{
+				size_t o = (size_t)j * (size_t)rw + (size_t)i;
+				dst[o * 3 + 0] = row[i * 3 + 2];
+				dst[o * 3 + 1] = row[i * 3 + 1];
+				dst[o * 3 + 2] = row[i * 3 + 0];
+			}
 		}
 		uploadPixels = convertedBuffer;
 	}
 
+	x = rx;
+	y = ry;
+	width = rw;
+	height = rh;
+
+	/*
+	 * WebGL2 often rejects glTexSubImage2D with GL_UNPACK_ROW_LENGTH (GL_INVALID_VALUE).
+	 * Copy strided CPU rows into a tight buffer and upload with default pixel store state.
+	 */
+	void* tightRows = NULL;
+	if (rowBytesInInput > 0 && uploadPixels == srcBase)
+	{
+		int bpp = (uploadFormat == GL_RGB && uploadType == GL_UNSIGNED_BYTE) ? 3 : 4;
+		tightRows = AllocPtr((size_t)width * height * (size_t)bpp);
+		const uint8_t* src = (const uint8_t*)uploadPixels;
+		uint8_t* dst = (uint8_t*)tightRows;
+		for (int r = 0; r < height; r++)
+			SDL_memcpy(
+					dst + (size_t)r * (size_t)width * (size_t)bpp,
+					src + (size_t)r * (size_t)rowBytesInInput * (size_t)bpp,
+					(size_t)width * (size_t)bpp);
+		uploadPixels = tightRows;
+	}
+
+	GLint prevUnpackRow = 0;
+	GLint prevUnpackAlign = 4;
+	glGetIntegerv(GL_UNPACK_ROW_LENGTH, &prevUnpackRow);
+	glGetIntegerv(GL_UNPACK_ALIGNMENT, &prevUnpackAlign);
+	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
 	glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, width, height,
 			uploadFormat, uploadType, uploadPixels);
+
+	CHECK_GL_ERROR();
+
+	glPixelStorei(GL_UNPACK_ROW_LENGTH, prevUnpackRow);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, prevUnpackAlign);
+
+	if (tightRows)
+		DisposePtr((Ptr)tightRows);
 	if (convertedBuffer)
 		DisposePtr((Ptr)convertedBuffer);
 #else
@@ -653,11 +774,11 @@ void Render_UpdateTexture(
 #endif
 	CHECK_GL_ERROR();
 
+#if !defined(__EMSCRIPTEN__)
 	// Restore unpack row length
 	if (rowBytesInInput > 0)
-	{
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, pUnpackRowLength);
-	}
+#endif
 }
 
 void Render_Load3DMFTextures(TQ3MetaFile* metaFile, GLuint* outTextureNames, bool forceClampUVs)
@@ -755,7 +876,11 @@ void Render_StartFrame(void)
 	gRenderStats.triangles = 0;
 
 	// Clear color & depth buffers.
+#if !defined(__EMSCRIPTEN__)
 	SetFlag(glDepthMask, true);	// The depth mask must be re-enabled so we can clear the depth buffer.
+#else
+	glDepthMask(GL_TRUE);
+#endif
 
 	GLbitfield clearWhat = GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT;
 #if OSXPPC
@@ -795,6 +920,77 @@ void Render_FlushQueue(void)
 			DrawOrderComparator
 	);
 
+#if defined(__EMSCRIPTEN__)
+	{
+		int numDeferredColorMeshes = 0;
+		const TQ3Matrix4x4* sGLESTransformSlot = NULL;
+
+		GLES3_SetDepthPassGlobals();
+
+		for (int i = 0; i < gMeshQueueSize; i++)
+		{
+			MeshQueueEntry* entry = gMeshQueuePtrs[i];
+
+			if (!entry->meshIsTransparent)
+			{
+				GLES3MeshQueueEntry ge = {
+					entry->mesh,
+					entry->transform,
+					entry->mods,
+					entry->mods->statusBits,
+				};
+				BeginShadingPass(entry);
+				PrepareOpaqueShading(entry);
+				GLES3_SendGeometry(&ge, &sGLESTransformSlot, GLES3_PASS_OPAQUE, NULL);
+			}
+			else
+			{
+				GAME_ASSERT(numDeferredColorMeshes <= i);
+				gMeshQueuePtrs[numDeferredColorMeshes++] = entry;
+
+				if (!(entry->mods->statusBits & STATUS_BIT_NOZWRITE))
+				{
+					GLES3MeshQueueEntry ge = {
+						entry->mesh,
+						entry->transform,
+						entry->mods,
+						entry->mods->statusBits,
+					};
+					GLES3_BeginDepthPass(&ge);
+					GLES3_SendGeometry(&ge, &sGLESTransformSlot, GLES3_PASS_DEPTH, NULL);
+				}
+			}
+		}
+
+		gRenderStats.meshesPass2 += numDeferredColorMeshes;
+
+		if (numDeferredColorMeshes > 0)
+		{
+			GLES3_SetTransparentPassGlobals();
+
+			for (int i = 0; i < numDeferredColorMeshes; i++)
+			{
+				const MeshQueueEntry* entry = gMeshQueuePtrs[i];
+				GLES3MeshQueueEntry ge = {
+					entry->mesh,
+					entry->transform,
+					entry->mods,
+					entry->mods->statusBits,
+				};
+				BeginShadingPass(entry);
+				PrepareAlphaShading(entry);
+				const float* alphaColors = entry->mesh->hasVertexColors ? gBackupVertexColors : NULL;
+				bool wantAdditive = !!(entry->mods->statusBits & STATUS_BIT_GLOW);
+				GLES3_SetBlendAdditive(wantAdditive);
+				GLES3_SendGeometry(&ge, &sGLESTransformSlot, GLES3_PASS_ALPHA, alphaColors);
+			}
+			GLES3_SetBlendAdditive(false);
+		}
+
+		gMeshQueueSize = 0;
+		gState.currentTransform = NULL;
+	}
+#else
 	//--------------------------------------------------------------
 	// PASS 1: OPAQUE COLOR + DEPTH
 	// - Draw opaque meshes (pre-sorted front-to-back) to color AND depth buffers.
@@ -865,6 +1061,7 @@ void Render_FlushQueue(void)
 		glPopMatrix();
 		gState.currentTransform = NULL;
 	}
+#endif
 }
 
 void Render_EndFrame(void)
@@ -1039,6 +1236,8 @@ static int DrawOrderComparator(const void* a_void, const void* b_void)
 
 #pragma mark -
 
+#if !defined(__EMSCRIPTEN__)
+
 static void SendGeometry(const MeshQueueEntry* entry)
 {
 	uint32_t statusBits = entry->mods->statusBits;
@@ -1072,25 +1271,13 @@ static void SendGeometry(const MeshQueueEntry* entry)
 		gState.currentTransform = entry->transform;
 	}
 
-	// Draw the mesh
-#if defined(__EMSCRIPTEN__)
-	/* glemu patch 12: prepareClientAttributes needs vertex count; pass via Module. */
-	/* glemu patch 13: glemu hardcodes UNSIGNED_SHORT; we use UNSIGNED_INT. */
-	EM_ASM({ Module._glemuVertexCount = $0; Module._glemuIndexType = 0x1405; }, mesh->numPoints);
-#endif
 	glDrawElements(GL_TRIANGLES, mesh->numTriangles*3, GL_UNSIGNED_INT, mesh->triangles);
 	CHECK_GL_ERROR();
 
 	// Pass 2 to draw transparent meshes without face culling (see above for an explanation)
 	if (statusBits & STATUS_BIT_KEEPBACKFACES_2PASS)
 	{
-		// Restored glCullFace to GL_BACK, which is the default for all other meshes.
 		glCullFace(GL_BACK);	// pass 2: draw frontfaces (cull backfaces)
-
-		// Draw the mesh again
-#if defined(__EMSCRIPTEN__)
-		EM_ASM({ Module._glemuVertexCount = $0; Module._glemuIndexType = 0x1405; }, mesh->numPoints);
-#endif
 		glDrawElements(GL_TRIANGLES, mesh->numTriangles * 3, GL_UNSIGNED_INT, mesh->triangles);
 		CHECK_GL_ERROR();
 	}
@@ -1220,11 +1407,31 @@ static void PrepareOpaqueShading(const MeshQueueEntry* entry)
 	}
 }
 
+#else /* __EMSCRIPTEN__ */
+
+static void BeginShadingPass(const MeshQueueEntry* entry)
+{
+	const TQ3TriMeshData* mesh = entry->mesh;
+	uint32_t statusBits = entry->mods->statusBits;
+
+	SetColorMask(GL_TRUE);
+	if ((statusBits & STATUS_BIT_REFLECTIONMAP) && entry->transform)
+		EnvironmentMapTriMesh(mesh, entry->transform);
+}
+
+static void PrepareOpaqueShading(const MeshQueueEntry* entry)
+{
+	(void)entry;
+}
+
+#endif /* !__EMSCRIPTEN__ */
+
 static void PrepareAlphaShading(const MeshQueueEntry* entry)
 {
 	const TQ3TriMeshData* mesh = entry->mesh;
-	const uint32_t statusBits = entry->mods->statusBits;
 
+#if !defined(__EMSCRIPTEN__)
+	const uint32_t statusBits = entry->mods->statusBits;
 	// Set additive alpha blending or not
 	bool wantAdditive = !!(statusBits & STATUS_BIT_GLOW);
 	if (gState.blendFuncIsAdditive != wantAdditive)
@@ -1235,14 +1442,17 @@ static void PrepareAlphaShading(const MeshQueueEntry* entry)
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		gState.blendFuncIsAdditive = wantAdditive;
 	}
+#endif
 
 	// Per-vertex colors
 	if (mesh->hasVertexColors)
 	{
+#if !defined(__EMSCRIPTEN__)
 		EnableClientState(GL_COLOR_ARRAY);
 
 		// OpenGL ignores diffuse color (used for transparency) if we also send
 		// per-vertex colors. So, apply transparency to the per-vertex color array.
+#endif
 		GAME_ASSERT(4 * mesh->numPoints <= (int)(sizeof(gBackupVertexColors) / sizeof(gBackupVertexColors[0])));
 		int j = 0;
 		for (int v = 0; v < mesh->numPoints; v++)
@@ -1253,10 +1463,13 @@ static void PrepareAlphaShading(const MeshQueueEntry* entry)
 			gBackupVertexColors[j++] = mesh->vertexColors[v].a * entry->mods->autoFadeFactor;
 		}
 
+#if !defined(__EMSCRIPTEN__)
 		glColorPointer(4, GL_FLOAT, 0, gBackupVertexColors);
+#endif
 	}
 	else
 	{
+#if !defined(__EMSCRIPTEN__)
 		DisableClientState(GL_COLOR_ARRAY);
 
 		// Apply diffuse color for the entire mesh
@@ -1265,11 +1478,13 @@ static void PrepareAlphaShading(const MeshQueueEntry* entry)
 				mesh->diffuseColor.g * entry->mods->diffuseColor.g,
 				mesh->diffuseColor.b * entry->mods->diffuseColor.b,
 				mesh->diffuseColor.a * entry->mods->diffuseColor.a * entry->mods->autoFadeFactor);
+#endif
 	}
 }
 
 void Render_ResetColor(void)
 {
+#if !defined(__EMSCRIPTEN__)
 	DisableState(GL_BLEND);
 	DisableState(GL_ALPHA_TEST);
 	DisableState(GL_LIGHTING);
@@ -1277,6 +1492,9 @@ void Render_ResetColor(void)
 	DisableClientState(GL_NORMAL_ARRAY);
 	DisableClientState(GL_COLOR_ARRAY);
 	glColor4f(1, 1, 1, 1);
+#else
+	GLES3_ResetColorState();
+#endif
 }
 
 #pragma mark -
@@ -1322,6 +1540,7 @@ void Render_Enter2D_Full640x480(void)
 		glViewport(0, 0, gWindowWidth, gWindowHeight);
 	}
 
+#if !defined(__EMSCRIPTEN__)
 	glMatrixMode(GL_PROJECTION);
 	glPushMatrix();
 	glLoadIdentity();
@@ -1329,10 +1548,15 @@ void Render_Enter2D_Full640x480(void)
 	glMatrixMode(GL_MODELVIEW);
 	glPushMatrix();
 	glLoadIdentity();
+#else
+	GLES3_PushMatrixStack();
+	GLES3_SetOrthoProjection(0.f, 640.f, 480.f, 0.f, 0.f, 1000.f);
+#endif
 }
 
 void Render_Enter2D_NormalizedCoordinates(float aspect)
 {
+#if !defined(__EMSCRIPTEN__)
 	glMatrixMode(GL_PROJECTION);
 	glPushMatrix();
 	glLoadIdentity();
@@ -1340,10 +1564,15 @@ void Render_Enter2D_NormalizedCoordinates(float aspect)
 	glMatrixMode(GL_MODELVIEW);
 	glPushMatrix();
 	glLoadIdentity();
+#else
+	GLES3_PushMatrixStack();
+	GLES3_SetOrthoProjection(-aspect, aspect, -1.f, 1.f, 0.f, 1000.f);
+#endif
 }
 
 void Render_Enter2D_NativeResolution(void)
 {
+#if !defined(__EMSCRIPTEN__)
 	glMatrixMode(GL_PROJECTION);
 	glPushMatrix();
 	glLoadIdentity();
@@ -1351,14 +1580,22 @@ void Render_Enter2D_NativeResolution(void)
 	glMatrixMode(GL_MODELVIEW);
 	glPushMatrix();
 	glLoadIdentity();
+#else
+	GLES3_PushMatrixStack();
+	GLES3_SetOrthoProjection(0.f, (float)gWindowWidth, (float)gWindowHeight, 0.f, 0.f, 1000.f);
+#endif
 }
 
 void Render_Exit2D(void)
 {
+#if !defined(__EMSCRIPTEN__)
 	glMatrixMode(GL_PROJECTION);
 	glPopMatrix();
 	glMatrixMode(GL_MODELVIEW);
 	glPopMatrix();
+#else
+	GLES3_PopMatrixStack();
+#endif
 }
 
 #pragma mark -
@@ -1378,6 +1615,13 @@ void Render_DrawFadeOverlay(float opacity)
 
 	Render_SubmitMesh(gFullscreenQuad, NULL, &kDefaultRenderMods_FadeOverlay, &kQ3Point3D_Zero);
 }
+
+#if defined(__EMSCRIPTEN__)
+void Render_DrawDebugLines(GLenum mode, const float* xyz, int nverts, float r, float g, float b, float a)
+{
+	GLES3_DrawLinePrimitives(mode, xyz, nverts, r, g, b, a);
+}
+#endif
 
 #pragma mark -
 
