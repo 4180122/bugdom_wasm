@@ -1,6 +1,6 @@
 # Bugdom (WASM Port)
 
-A **WebAssembly port** of [Bugdom](https://github.com/jorio/Bugdom), playable in the browser.
+A **WebAssembly port** of [Bugdom](https://github.com/jorio/Bugdom), playable in the browser [here](https://4180122.github.io/bugdom_wasm/).
 
 > **Original port:** This project is based on [jorio/Bugdom](https://github.com/jorio/Bugdom) by Iliyas Jorio, which ports Pangea Software's Bugdom to modern desktop platforms. The WASM build adds Emscripten support for browser playback. All credits for the original game and port apply — see [Credits](#credits) and [License](#license) below.
 
