@@ -1,0 +1,10 @@
+/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/Bugdom.dir
+/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/edit_cache.dir
+/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/rebuild_cache.dir
+/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/extern/SDL/CMakeFiles/SDL3-static.dir
+/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/extern/SDL/CMakeFiles/SDL3_test.dir
+/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/extern/SDL/CMakeFiles/edit_cache.dir
+/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/extern/SDL/CMakeFiles/rebuild_cache.dir
+/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/extern/Pomme/CMakeFiles/Pomme.dir
+/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/extern/Pomme/CMakeFiles/edit_cache.dir
+/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/extern/Pomme/CMakeFiles/rebuild_cache.dir

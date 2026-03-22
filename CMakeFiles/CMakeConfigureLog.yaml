@@ -1,0 +1,247 @@
+
+---
+events:
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/CMakeDetermineSystem.cmake:200 (message)"
+      - "CMakeLists.txt:18 (project)"
+    message: |
+      The target system is: Emscripten - 1 - x86
+      The host system is: Linux - 6.14.0-1017-azure - x86_64
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "extern/SDL/cmake/sdlcpu.cmake:95 (try_compile)"
+      - "extern/SDL/CMakeLists.txt:83 (SDL_DetectTargetCPUArchitectures)"
+    directories:
+      source: "/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/extern/SDL/CMakeFiles/CMakeTmp/SDL_detect_arch/CMakeFiles/CMakeTmp"
+      binary: "/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/extern/SDL/CMakeFiles/CMakeTmp/SDL_detect_arch/CMakeFiles/CMakeTmp"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/emscan-deps"
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/bugdom_wasm/bugdom_wasm/extern/SDL/cmake"
+      CMAKE_OSX_ARCHITECTURES: "arm64;x86_64"
+      CMAKE_OSX_DEPLOYMENT_TARGET: "10.13"
+    buildResult:
+      variable: "SDL_CPU_CHECK_ALL"
+      cached: true
+      stdout: |
+        Change Dir: '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/extern/SDL/CMakeFiles/CMakeTmp/SDL_detect_arch/CMakeFiles/CMakeTmp'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_b905b/fast
+        gmake[1]: Entering directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/extern/SDL/CMakeFiles/CMakeTmp/SDL_detect_arch/CMakeFiles/CMakeTmp'
+        /usr/bin/gmake  -f CMakeFiles/cmTC_b905b.dir/build.make CMakeFiles/cmTC_b905b.dir/build
+        gmake[2]: Entering directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/extern/SDL/CMakeFiles/CMakeTmp/SDL_detect_arch/CMakeFiles/CMakeTmp'
+        Building C object CMakeFiles/cmTC_b905b.dir/SDL_detect_arch.c.o
+        /home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/emcc   -std=gnu17 -MD -MT CMakeFiles/cmTC_b905b.dir/SDL_detect_arch.c.o -MF CMakeFiles/cmTC_b905b.dir/SDL_detect_arch.c.o.d -o CMakeFiles/cmTC_b905b.dir/SDL_detect_arch.c.o -c /home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/extern/SDL/CMakeFiles/CMakeTmp/SDL_detect_arch.c
+        shared:INFO: (Emscripten: Running sanity checks)
+        Linking C static library libcmTC_b905b.a
+        /usr/local/bin/cmake -P CMakeFiles/cmTC_b905b.dir/cmake_clean_target.cmake
+        /usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_b905b.dir/link.txt --verbose=1
+        /home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/emar qc libcmTC_b905b.a CMakeFiles/cmTC_b905b.dir/SDL_detect_arch.c.o
+        /home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/emranlib libcmTC_b905b.a
+        gmake[2]: Leaving directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/extern/SDL/CMakeFiles/CMakeTmp/SDL_detect_arch/CMakeFiles/CMakeTmp'
+        gmake[1]: Leaving directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/extern/SDL/CMakeFiles/CMakeTmp/SDL_detect_arch/CMakeFiles/CMakeTmp'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/Internal/CheckSourceCompiles.cmake:108 (try_compile)"
+      - "/usr/local/share/cmake-3.31/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/local/share/cmake-3.31/Modules/CheckCCompilerFlag.cmake:56 (cmake_check_compiler_flag)"
+      - "extern/SDL/cmake/sdlcompilers.cmake:34 (check_c_compiler_flag)"
+      - "extern/SDL/cmake/sdlcompilers.cmake:173 (cached_check_c_compiler_flag)"
+      - "extern/SDL/CMakeLists.txt:493 (SDL_AddCommonCompilerFlags)"
+    checks:
+      - "Performing Test COMPILER_SUPPORTS_FCOLOR_DIAGNOSTICS"
+    directories:
+      source: "/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-kCD173"
+      binary: "/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-kCD173"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/emscan-deps"
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/bugdom_wasm/bugdom_wasm/extern/SDL/cmake"
+      CMAKE_OSX_ARCHITECTURES: "arm64;x86_64"
+      CMAKE_OSX_DEPLOYMENT_TARGET: "10.13"
+    buildResult:
+      variable: "COMPILER_SUPPORTS_FCOLOR_DIAGNOSTICS"
+      cached: true
+      stdout: |
+        Change Dir: '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-kCD173'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_df759/fast
+        gmake[1]: Entering directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-kCD173'
+        /usr/bin/gmake  -f CMakeFiles/cmTC_df759.dir/build.make CMakeFiles/cmTC_df759.dir/build
+        gmake[2]: Entering directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-kCD173'
+        Building C object CMakeFiles/cmTC_df759.dir/src.c.o
+        /home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/emcc -DCOMPILER_SUPPORTS_FCOLOR_DIAGNOSTICS  -D_GNU_SOURCE=1 -std=gnu17   -fcolor-diagnostics -MD -MT CMakeFiles/cmTC_df759.dir/src.c.o -MF CMakeFiles/cmTC_df759.dir/src.c.o.d -o CMakeFiles/cmTC_df759.dir/src.c.o -c /home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-kCD173/src.c
+        Linking C executable cmTC_df759.js
+        /usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_df759.dir/link.txt --verbose=1
+        /home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/emcc   -D_GNU_SOURCE=1 CMakeFiles/cmTC_df759.dir/src.c.o -o cmTC_df759.js
+        gmake[2]: Leaving directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-kCD173'
+        gmake[1]: Leaving directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-kCD173'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/CheckSymbolExists.cmake:163 (try_compile)"
+      - "/usr/local/share/cmake-3.31/Modules/CheckSymbolExists.cmake:68 (__CHECK_SYMBOL_EXISTS_IMPL)"
+      - "extern/SDL/CMakeLists.txt:1174 (check_symbol_exists)"
+    checks:
+      - "Looking for getresgid"
+    directories:
+      source: "/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-jPlJoJ"
+      binary: "/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-jPlJoJ"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/emscan-deps"
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/bugdom_wasm/bugdom_wasm/extern/SDL/cmake"
+      CMAKE_OSX_ARCHITECTURES: "arm64;x86_64"
+      CMAKE_OSX_DEPLOYMENT_TARGET: "10.13"
+    buildResult:
+      variable: "HAVE_GETRESGID"
+      cached: true
+      stdout: |
+        Change Dir: '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-jPlJoJ'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_eec58/fast
+        gmake[1]: Entering directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-jPlJoJ'
+        /usr/bin/gmake  -f CMakeFiles/cmTC_eec58.dir/build.make CMakeFiles/cmTC_eec58.dir/build
+        gmake[2]: Entering directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-jPlJoJ'
+        Building C object CMakeFiles/cmTC_eec58.dir/CheckSymbolExists.c.o
+        /home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/emcc   -D_GNU_SOURCE=1 -std=gnu17 -MD -MT CMakeFiles/cmTC_eec58.dir/CheckSymbolExists.c.o -MF CMakeFiles/cmTC_eec58.dir/CheckSymbolExists.c.o.d -o CMakeFiles/cmTC_eec58.dir/CheckSymbolExists.c.o -c /home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-jPlJoJ/CheckSymbolExists.c
+        Linking C executable cmTC_eec58.js
+        /usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_eec58.dir/link.txt --verbose=1
+        /home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/emcc   -D_GNU_SOURCE=1 CMakeFiles/cmTC_eec58.dir/CheckSymbolExists.c.o -o cmTC_eec58.js
+        gmake[2]: Leaving directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-jPlJoJ'
+        gmake[1]: Leaving directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-jPlJoJ'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/CheckSymbolExists.cmake:163 (try_compile)"
+      - "/usr/local/share/cmake-3.31/Modules/CheckSymbolExists.cmake:68 (__CHECK_SYMBOL_EXISTS_IMPL)"
+      - "extern/SDL/CMakeLists.txt:1175 (check_symbol_exists)"
+    checks:
+      - "Looking for getresuid"
+    directories:
+      source: "/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-qohpf5"
+      binary: "/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-qohpf5"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/emscan-deps"
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/bugdom_wasm/bugdom_wasm/extern/SDL/cmake"
+      CMAKE_OSX_ARCHITECTURES: "arm64;x86_64"
+      CMAKE_OSX_DEPLOYMENT_TARGET: "10.13"
+    buildResult:
+      variable: "HAVE_GETRESUID"
+      cached: true
+      stdout: |
+        Change Dir: '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-qohpf5'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_66eeb/fast
+        gmake[1]: Entering directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-qohpf5'
+        /usr/bin/gmake  -f CMakeFiles/cmTC_66eeb.dir/build.make CMakeFiles/cmTC_66eeb.dir/build
+        gmake[2]: Entering directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-qohpf5'
+        Building C object CMakeFiles/cmTC_66eeb.dir/CheckSymbolExists.c.o
+        /home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/emcc   -D_GNU_SOURCE=1 -std=gnu17 -MD -MT CMakeFiles/cmTC_66eeb.dir/CheckSymbolExists.c.o -MF CMakeFiles/cmTC_66eeb.dir/CheckSymbolExists.c.o.d -o CMakeFiles/cmTC_66eeb.dir/CheckSymbolExists.c.o -c /home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-qohpf5/CheckSymbolExists.c
+        Linking C executable cmTC_66eeb.js
+        /usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_66eeb.dir/link.txt --verbose=1
+        /home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/emcc   -D_GNU_SOURCE=1 CMakeFiles/cmTC_66eeb.dir/CheckSymbolExists.c.o -o cmTC_66eeb.js
+        gmake[2]: Leaving directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-qohpf5'
+        gmake[1]: Leaving directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-qohpf5'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/Internal/CheckSourceCompiles.cmake:108 (try_compile)"
+      - "/usr/local/share/cmake-3.31/Modules/CheckCSourceCompiles.cmake:58 (cmake_check_source_compiles)"
+      - "extern/SDL/CMakeLists.txt:3466 (check_c_source_compiles)"
+    checks:
+      - "Performing Test HAVE_POSIX_SPAWN"
+    directories:
+      source: "/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-08JMOn"
+      binary: "/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-08JMOn"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/emscan-deps"
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/bugdom_wasm/bugdom_wasm/extern/SDL/cmake"
+      CMAKE_OSX_ARCHITECTURES: "arm64;x86_64"
+      CMAKE_OSX_DEPLOYMENT_TARGET: "10.13"
+    buildResult:
+      variable: "HAVE_POSIX_SPAWN"
+      cached: true
+      stdout: |
+        Change Dir: '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-08JMOn'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_1397a/fast
+        gmake[1]: Entering directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-08JMOn'
+        /usr/bin/gmake  -f CMakeFiles/cmTC_1397a.dir/build.make CMakeFiles/cmTC_1397a.dir/build
+        gmake[2]: Entering directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-08JMOn'
+        Building C object CMakeFiles/cmTC_1397a.dir/src.c.o
+        /home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/emcc -DHAVE_POSIX_SPAWN  -D_GNU_SOURCE=1 -std=gnu17 -MD -MT CMakeFiles/cmTC_1397a.dir/src.c.o -MF CMakeFiles/cmTC_1397a.dir/src.c.o.d -o CMakeFiles/cmTC_1397a.dir/src.c.o -c /home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-08JMOn/src.c
+        Linking C executable cmTC_1397a.js
+        /usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_1397a.dir/link.txt --verbose=1
+        wasm-ld: error: CMakeFiles/cmTC_1397a.dir/src.c.o: undefined symbol: posix_spawnp
+        emcc: error: '/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/bin/wasm-ld -o cmTC_1397a.wasm /tmp/tmpnr98ejvklibemscripten_js_symbols.so --strip-debug --export=emscripten_stack_get_end --export=emscripten_stack_get_free --export=emscripten_stack_get_base --export=emscripten_stack_get_current --export=emscripten_stack_init --export=_emscripten_stack_alloc --export=__wasm_call_ctors --export=_emscripten_stack_restore --export-if-defined=__start_em_asm --export-if-defined=__stop_em_asm --export-if-defined=__start_em_lib_deps --export-if-defined=__stop_em_lib_deps --export-if-defined=__start_em_js --export-if-defined=__stop_em_js --export-if-defined=main --export-if-defined=__main_argc_argv --export-if-defined=fflush --export-table -z stack-size=65536 --no-growable-memory --initial-heap=16777216 --no-entry --stack-first --table-base=1 CMakeFiles/cmTC_1397a.dir/src.c.o -L/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten -L/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/src/lib -lGL-getprocaddr -lal -lhtml5 -lstubs-debug -lnoexit -lc-debug -ldlmalloc-debug -lcompiler_rt -lc++-debug-noexcept -lc++abi-debug-noexcept -lsockets -mllvm -combiner-global-alias-analysis=false -mllvm -enable-emscripten-sjlj -mllvm -disable-lsr' failed (returned 1)
+        /home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/emcc   -D_GNU_SOURCE=1 CMakeFiles/cmTC_1397a.dir/src.c.o -o cmTC_1397a.js
+        gmake[2]: *** [CMakeFiles/cmTC_1397a.dir/build.make:103: cmTC_1397a.js] Error 1
+        gmake[2]: Leaving directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-08JMOn'
+        gmake[1]: *** [Makefile:134: cmTC_1397a/fast] Error 2
+        gmake[1]: Leaving directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-08JMOn'
+        
+      exitCode: 2
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/CheckSymbolExists.cmake:163 (try_compile)"
+      - "/usr/local/share/cmake-3.31/Modules/CheckSymbolExists.cmake:68 (__CHECK_SYMBOL_EXISTS_IMPL)"
+      - "extern/SDL/CMakeLists.txt:3503 (check_symbol_exists)"
+    checks:
+      - "Looking for vfork"
+    directories:
+      source: "/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-ykFPvR"
+      binary: "/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-ykFPvR"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/emscan-deps"
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/cmake/Modules;/home/runner/work/bugdom_wasm/bugdom_wasm/extern/SDL/cmake"
+      CMAKE_OSX_ARCHITECTURES: "arm64;x86_64"
+      CMAKE_OSX_DEPLOYMENT_TARGET: "10.13"
+    buildResult:
+      variable: "LIBC_HAS_VFORK"
+      cached: true
+      stdout: |
+        Change Dir: '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-ykFPvR'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_8eb06/fast
+        gmake[1]: Entering directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-ykFPvR'
+        /usr/bin/gmake  -f CMakeFiles/cmTC_8eb06.dir/build.make CMakeFiles/cmTC_8eb06.dir/build
+        gmake[2]: Entering directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-ykFPvR'
+        Building C object CMakeFiles/cmTC_8eb06.dir/CheckSymbolExists.c.o
+        /home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/emcc   -D_GNU_SOURCE=1 -std=gnu17 -MD -MT CMakeFiles/cmTC_8eb06.dir/CheckSymbolExists.c.o -MF CMakeFiles/cmTC_8eb06.dir/CheckSymbolExists.c.o.d -o CMakeFiles/cmTC_8eb06.dir/CheckSymbolExists.c.o -c /home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-ykFPvR/CheckSymbolExists.c
+        Linking C executable cmTC_8eb06.js
+        /usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_8eb06.dir/link.txt --verbose=1
+        /home/runner/work/_temp/a147e89a-7ff8-4abc-a278-33e2f7c9fbb7/emsdk-main/upstream/emscripten/emcc   -D_GNU_SOURCE=1 CMakeFiles/cmTC_8eb06.dir/CheckSymbolExists.c.o -o cmTC_8eb06.js
+        gmake[2]: Leaving directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-ykFPvR'
+        gmake[1]: Leaving directory '/home/runner/work/bugdom_wasm/bugdom_wasm/build-wasm/CMakeFiles/CMakeScratch/TryCompile-ykFPvR'
+        
+      exitCode: 0
+...
